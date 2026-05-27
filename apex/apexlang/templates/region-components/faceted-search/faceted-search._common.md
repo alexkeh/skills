@@ -131,7 +131,7 @@ region {{regionStaticId}} (
 - Facet names must be page-scoped and collision-safe (for example `P{page}_FACET_*` or `FS_*`); avoid generic names like `FACET_SEARCH`.
 - `listEntries.maxDisplayedEntries` is allowed only when facet `type` is `checkboxGroup` or `radioGroup`.
 - For all other facet types (including `range`), omit the `listEntries` block.
-- Do not emit internal runtime tokens such as `NATIVE_SEARCH` or `NATIVE_SELECT_LIST` in APEXLang unless a compiler-validated example explicitly requires them; the canonical emitted DSL in this repo uses the simple type names above.
+- Do not emit internal runtime tokens such as `NATIVE_SEARCH` or `NATIVE_SELECT_LIST` in APEXlang unless a compiler-validated example explicitly requires them; the canonical emitted DSL in this repo uses the simple type names above.
 - Keep facet definitions declarative; avoid custom JS unless required.
 - Do not use `slot: body` plus `columnSpan` values for the canonical faceted-search sidebar.
 - Do not assume a page-header wrapper region; breadcrumb placement belongs directly in `breadcrumbBar` for the standard pattern.

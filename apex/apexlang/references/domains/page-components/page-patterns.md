@@ -31,7 +31,7 @@ This skill executes the page-patterns playbook defined in this repository. It en
 ### Progressive Prompts (Server-Side Conditions)
 1. “Do any components on this page require a server-side condition? (Reply ‘none’ to skip.)”
 2. If yes, capture `scope` (button, region, item, dynamic action, or process) and `identifier`.
-3. Request the catalog `type` or SSC token from `memory-bank/20-data/apex.logic.md`.
+3. Request the catalog `type` or SSC token from `references/policies/memory-bank/20-data/apex.logic.md`.
 4. Collect required attributes (`item`, `value/list`, `requestValue`, `plsqlExpression`, `sqlQuery`, etc.). Missing answers halt the workflow.
 
 ---
@@ -105,7 +105,7 @@ This skill executes the page-patterns playbook defined in this repository. It en
 2. The internal review loop records PASS/CONFIDENCE in the compact runtime report when the workflow reaches runtime gates.
 3. Final page artifact updates `applications/app_###/pages/` unless the calling master passes a resolved application path.
 4. Execute the import runtime gate for import-ready runs.
-5. Run Import Changes Gate after the live APEXLang check succeeds.
+5. Run Import Changes Gate after the live APEXlang check succeeds.
 
 ---
 

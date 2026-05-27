@@ -1,5 +1,5 @@
 /**
- * Generated packaged runtime bundle for the public APEXLang skill.
+ * Generated packaged runtime bundle for the public APEXlang skill.
  * This keeps the public runtime direct-importable without temp copying.
  */
 import { spawnSync } from "node:child_process";
@@ -175,7 +175,18 @@ const DEFAULT_CONFIG = {
   },
   bounded_scan: {
     max_depth: 4,
-    excluded_directories: [".git", ".vscode", "node_modules", "dist", "build", "coverage", ".next", ".turbo"],
+    excluded_directories: [
+      ".git",
+      ".vscode",
+      "node_modules",
+      "dist",
+      "build",
+      "coverage",
+      ".next",
+      ".turbo",
+      "artifacts",
+      "apex-exports"
+    ],
     allowed_extensions: [".json", ".yaml", ".yml", ".md", ".sql", ".xml"]
   },
   db_prompt_flow: {
@@ -807,6 +818,11 @@ function isTemplateScaffoldCandidate(root, directoryPath) {
   );
 }
 
+function isOutputOrBackupCandidate(root, directoryPath) {
+  const relativePath = normalizePath(root, directoryPath).replaceAll(path.sep, "/");
+  return relativePath.split("/").some((segment) => segment === "artifacts" || segment === "apex-exports");
+}
+
 /**
  * Collect explicit and discovered APEX application root candidates.
  */
@@ -823,7 +839,7 @@ async function collectApexAppCandidates({ root, intelligence, discovered, author
     if (seen.has(resolved) || !(await exists(resolved))) {
       return;
     }
-    if (isTemplateScaffoldCandidate(root, resolved)) {
+    if (isTemplateScaffoldCandidate(root, resolved) || isOutputOrBackupCandidate(root, resolved)) {
       return;
     }
     try {
@@ -1040,6 +1056,13 @@ const DEFAULT_BUILD_ROOT_REPORT = skillLogPath("apex-build-root-resolution.json"
 const DEFAULT_PREFLIGHT_REPORT = skillLogPath("runtime-preflight.json");
 const DEFAULT_ROUNDTRIP_REPORT = skillLogPath("runtime-run.json");
 const DEFAULT_ROUNDTRIP_LOG = skillLogPath("runtime-run.log");
+const DEFAULT_VALIDATION_ARTIFACT_DIR = skillLogPath("validation");
+const DEFAULT_VALIDATION_REPORT = path.join(DEFAULT_VALIDATION_ARTIFACT_DIR, "validation-report.json");
+const DEFAULT_VALIDATION_TRANSCRIPT = path.join(DEFAULT_VALIDATION_ARTIFACT_DIR, "validation-transcript.log");
+const DEFAULT_VALIDATION_PROBLEMS = path.join(DEFAULT_VALIDATION_ARTIFACT_DIR, "problems.json");
+const DEFAULT_VALIDATION_CONTRACT_DIR = path.join(DEFAULT_VALIDATION_ARTIFACT_DIR, "component-contracts");
+const DEFAULT_VALIDATION_COMPILER_TRUTH_REPORT = path.join(DEFAULT_VALIDATION_ARTIFACT_DIR, "compiler-truth-report.json");
+const DEFAULT_VALIDATION_ROUNDTRIP_REPORT = path.join(DEFAULT_VALIDATION_ARTIFACT_DIR, "roundtrip-report.json");
 const DEFAULT_RUNTIME_VERIFY_ARTIFACT_DIR = skillLogPath("runtime-verify");
 const SOURCE_IMPORT_LANE = "apexlang_source_import";
 const COMPILED_SQL_EXPORT_IMPORT_LANE = "compiled_sql_export_import";
@@ -1067,7 +1090,7 @@ const APEX_RUNTIME_ERROR_PATTERNS = [
   /\bAPEX - Attempt to save item\b/i,
   /\bTechnical Info\b/i,
   /\bError Processing Request\b/i,
-  /\bAPEXLang Compile Errors\b/i
+  /\bAPEXlang Compile Errors\b/i
 ];
 const RUNTIME_TEXT_TAG_STRIP_PATTERN = /<[^>]+>/g;
 const FAILURE_PATTERN = /\b(ORA-\d+|SP2-\d+|ERROR\b|Error!|not connected|unknown command|EPERM|ENOENT)\b/i;
@@ -1315,7 +1338,7 @@ function assertRuntimeApexlangCompatibility({ appApexlangVersion = "", connectio
   if (!appApexlangVersion) {
     const error = new Error("Unable to resolve mmdVersion from .apex/apexlang.json.");
     error.stageFailureClass = "preflight_apexlang_version_missing";
-    error.nextSafeAction = "Add .apex/apexlang.json with the active APEXLang mmdVersion before validation or import.";
+    error.nextSafeAction = "Add .apex/apexlang.json with the active APEXlang mmdVersion before validation or import.";
     throw error;
   }
   const runtimeVersion = connectionSignature?.signature || "";
@@ -1324,10 +1347,10 @@ function assertRuntimeApexlangCompatibility({ appApexlangVersion = "", connectio
   }
   if (appApexlangVersion !== runtimeVersion) {
     const error = new Error(
-      `APEXLang mmdVersion ${appApexlangVersion} does not match runtime ${runtimeVersion}.`
+      `APEXlang mmdVersion ${appApexlangVersion} does not match runtime ${runtimeVersion}.`
     );
     error.stageFailureClass = "preflight_apexlang_version_mismatch";
-    error.nextSafeAction = "Use the matching APEX build-root connection or regenerate the app with the active APEXLang version.";
+    error.nextSafeAction = "Use the matching APEX build-root connection or regenerate the app with the active APEXlang version.";
     throw error;
   }
 }
@@ -3209,7 +3232,7 @@ function noteValidationReviewFailure(summary, { stage, attempt }) {
   summary.review_pass_count = Math.max(summary.review_pass_count || 0, attempt);
   if (stage === "live_validate") {
     summary.notes.push(
-      `Validation review pass ${attempt}/${totalPasses} failed in the APEXLang source import lane. Debugging started before any import attempt.`
+      `Validation review pass ${attempt}/${totalPasses} failed in the APEXlang source import lane. Debugging started before any import attempt.`
     );
     summary.notes.push("No blind second or third live validate run will happen unless a concrete repo-local fix is applied first.");
     return;
@@ -3230,7 +3253,7 @@ function classifyCaughtFailure({ stage, output = "", summary }) {
       return buildFailureDebuggingRecord({
         stage,
         bucket: "APX syntax or file-shape failure",
-        owner: "staged .apx artifact shape and local APEXLang validator",
+        owner: "staged .apx artifact shape and local APEXlang validator",
         check: "Re-run local apexlang validation on the transient app path.",
         fixPattern: "Remove invalid execution.event properties from dynamic-action action execution blocks.",
         handler: "remove_dynamic_action_execution_event",
@@ -3241,7 +3264,7 @@ function classifyCaughtFailure({ stage, output = "", summary }) {
     return buildFailureDebuggingRecord({
       stage,
       bucket: "APX syntax or file-shape failure",
-      owner: "staged .apx artifact shape and local APEXLang validator",
+      owner: "staged .apx artifact shape and local APEXlang validator",
       check: "Re-run local apexlang validation on the transient app path.",
       fixPattern: "Fix the emitted or edited .apx shape before any live SQLcl retry.",
       autoFixEligible: false,
@@ -3467,8 +3490,8 @@ function applyRuntimeAttemptFailure({ summary, runtimeResult, stage }) {
   }
   summary.runtime_gate_status = "fail";
   summary.notes.push(stage === "live_import"
-    ? "APEXLang source import failed after the same-session validate pass."
-    : "APEXLang source validate failed in the selected runtime path.");
+    ? "APEXlang source import failed after the same-session validate pass."
+    : "APEXlang source validate failed in the selected runtime path.");
   if (stage === "live_validate") {
     noteValidationReviewFailure(summary, { stage, attempt: 1 });
   }
@@ -3508,6 +3531,390 @@ async function writeRoundtripArtifacts(summary, transcript) {
 
 function buildRoundtripResult(code, summary) {
   return { code, payload: syncCheckAliases(summary) };
+}
+
+function compilerTruthAuditToolPath() {
+  return isPackagedSkillRuntime()
+    ? apexlangToolPath("compiler-truth-audit.mjs")
+    : path.resolve(apexlangToolPath("..", "..", "..", "ai-context", "apexlang", "compiler-prop-map", "compiler-truth-audit.mjs"));
+}
+
+function componentAttributesPath() {
+  return isPackagedSkillRuntime()
+    ? path.resolve(apexlangToolPath("..", "assets", "component-attributes.json"))
+    : path.resolve(apexlangToolPath("..", "..", "..", "ai-context", "memory-bank", "component-attributes.json"));
+}
+
+async function readJsonIfExists(filePath) {
+  try {
+    return await readJson(filePath);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeProblemSeverity(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["warning", "warn"].includes(normalized)) {
+    return "warning";
+  }
+  if (["info", "information", "hint"].includes(normalized)) {
+    return "info";
+  }
+  return "error";
+}
+
+function inferCompilerType(message = "") {
+  const text = String(message || "");
+  const match = text.match(/\b(ORA-\d+|SP2-\d+|PLS-\d+|DSL_[A-Z0-9_]+|APEXLANG_[A-Z0-9_]+|COMPILER_TRUTH_[A-Z0-9_]+|INVALID_[A-Z0-9_]+|MISSING_[A-Z0-9_]+)\b/i);
+  return match ? match[1] : "";
+}
+
+function normalizeProblem(problem = {}, source = "unknown") {
+  const message = String(problem.message ?? problem.text ?? problem.description ?? "").trim();
+  return {
+    source: String(problem.source || source),
+    file: String(problem.file || problem.path || problem.uri || "").trim(),
+    line: Number.isInteger(problem.line) ? problem.line : Number.parseInt(problem.line || "0", 10) || null,
+    column: Number.isInteger(problem.column) ? problem.column : Number.parseInt(problem.column || "0", 10) || null,
+    severity: normalizeProblemSeverity(problem.severity),
+    compiler_type: String(problem.compiler_type || problem.compilerType || problem.code || problem.rule || inferCompilerType(message)).trim(),
+    message
+  };
+}
+
+function problemSortKey(problem) {
+  return [
+    problem.file || "",
+    String(problem.line ?? 0).padStart(8, "0"),
+    problem.severity === "error" ? "0" : problem.severity === "warning" ? "1" : "2",
+    problem.compiler_type || "",
+    problem.message || ""
+  ].join("|");
+}
+
+function sortProblems(problems = []) {
+  return [...problems].sort((left, right) => problemSortKey(left).localeCompare(problemSortKey(right)));
+}
+
+function parseTranscriptProblems(transcript = "") {
+  const problems = [];
+  const lines = String(transcript || "").split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].trim();
+    if (!line || /_CHECK_OK\b/.test(line)) {
+      continue;
+    }
+    const hasProblemSignal =
+      /\b(ORA-\d+|SP2-\d+|PLS-\d+|APEXLANG_[A-Z0-9_]+|DSL_[A-Z0-9_]+|COMPILER_TRUTH_[A-Z0-9_]+|INVALID_[A-Z0-9_]+|MISSING_[A-Z0-9_]+|Error!|\berror\b|\bwarning\b)\b/i.test(line);
+    if (!hasProblemSignal) {
+      continue;
+    }
+    const pathMatch = line.match(/([^:\s]+\.apx):(\d+)(?::(\d+))?:\s*(.*)$/i);
+    problems.push(normalizeProblem({
+      source: "apex_validate",
+      file: pathMatch ? pathMatch[1] : "",
+      line: pathMatch ? Number.parseInt(pathMatch[2], 10) : index + 1,
+      column: pathMatch?.[3] ? Number.parseInt(pathMatch[3], 10) : null,
+      severity: /\bwarning\b/i.test(line) ? "warning" : "error",
+      message: pathMatch ? pathMatch[4] : line
+    }, "apex_validate"));
+  }
+  return problems;
+}
+
+function compilerTruthProblems(report = {}) {
+  return (Array.isArray(report?.issues) ? report.issues : []).map((issue) => normalizeProblem({
+    source: "compiler_truth",
+    file: issue.file || issue.path || "",
+    line: issue.line || null,
+    column: issue.column || null,
+    severity: issue.severity || "error",
+    code: issue.code || issue.rule || issue.issue_code || "",
+    message: issue.message || issue.detail || JSON.stringify(issue)
+  }, "compiler_truth"));
+}
+
+async function loadVscodeProblemsEvidence({ vscodeProblemsPath = "", appPath = "" } = {}) {
+  if (!vscodeProblemsPath) {
+    return {
+      status: "unavailable",
+      source: "unavailable",
+      checked_paths: [],
+      unresolved_count: null,
+      problems: [],
+      blocking_reason: "VSCode Problems diagnostics were not provided to the runtime validate command."
+    };
+  }
+  const payload = await readJson(vscodeProblemsPath);
+  const rawProblems = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.problems)
+      ? payload.problems
+      : Array.isArray(payload.diagnostics)
+        ? payload.diagnostics
+        : [];
+  const appRoot = appPath ? path.resolve(appPath) : "";
+  const problems = rawProblems
+    .map((problem) => normalizeProblem(problem, "vscode_problems"))
+    .filter((problem) => {
+      if (!appRoot || !problem.file) {
+        return true;
+      }
+      const resolved = path.isAbsolute(problem.file) ? problem.file : path.resolve(appRoot, problem.file);
+      return resolved.startsWith(appRoot);
+    });
+  const unresolved = problems.filter((problem) => ["error", "warning"].includes(problem.severity));
+  return {
+    status: unresolved.length === 0 ? "pass" : "fail",
+    source: "user_snapshot",
+    checked_paths: [...new Set(problems.map((problem) => problem.file).filter(Boolean))].sort(),
+    unresolved_count: unresolved.length,
+    problems,
+    blocking_reason: unresolved.length === 0 ? "" : "VSCode Problems diagnostics contain unresolved generated-artifact issues."
+  };
+}
+
+function buildComponentContracts(componentAttributes = {}, { build = "", compilerReport = {}, source = "component-attributes" } = {}) {
+  const components = {};
+  for (const [componentType, families] of Object.entries(componentAttributes.components || {})) {
+    components[componentType] = {};
+    for (const [familyName, contract] of Object.entries(families || {})) {
+      components[componentType][familyName] = {
+        allowedBlocks: contract.allowedBlocks || [],
+        requiredBlocks: contract.requiredBlocks || [],
+        propertyEnums: contract.propertyEnums || {},
+        childComponents: {}
+      };
+      for (const [childName, childContract] of Object.entries(contract || {})) {
+        if (!childContract || typeof childContract !== "object" || Array.isArray(childContract)) {
+          continue;
+        }
+        if (!childContract.allowedProperties && !childContract.requiredProperties && !childContract.allowedBlocks) {
+          continue;
+        }
+        components[componentType][familyName].childComponents[childName] = {
+          allowedProperties: childContract.allowedProperties || [],
+          requiredProperties: childContract.requiredProperties || [],
+          allowedBlocks: childContract.allowedBlocks || [],
+          requiredBlocks: childContract.requiredBlocks || [],
+          propertyEnums: childContract.propertyEnums || {}
+        };
+      }
+    }
+  }
+  return {
+    generated_at: new Date().toISOString(),
+    build: build || compilerReport?.compilerTruth?.buildID || componentAttributes?.compilerProvenance?.buildID || "unknown",
+    source,
+    warnings_as_errors: true,
+    valid_component_types: Object.keys(components).sort(),
+    deprecated_slots: componentAttributes?.deprecatedSlots || componentAttributes?.deprecated_slots || [],
+    known_warning_as_error_cases: compilerReport?.warningAsErrorCases || componentAttributes?.knownWarningAsErrorCases || [],
+    compiler_truth_status: compilerReport?.status || "unknown",
+    compiler_provenance: componentAttributes?.compilerProvenance || null,
+    components
+  };
+}
+
+function validationArtifactPaths(options = {}) {
+  const artifactDir = path.resolve(
+    options.artifactDir ||
+      (options.reportPath ? path.dirname(path.resolve(options.reportPath)) : DEFAULT_VALIDATION_ARTIFACT_DIR)
+  );
+  const reportPath = path.resolve(options.reportPath || path.join(artifactDir, path.basename(DEFAULT_VALIDATION_REPORT)));
+  return {
+    artifactDir,
+    reportPath,
+    transcriptPath: path.resolve(options.transcriptPath || path.join(artifactDir, path.basename(DEFAULT_VALIDATION_TRANSCRIPT))),
+    problemsPath: path.resolve(options.problemsPath || path.join(artifactDir, path.basename(DEFAULT_VALIDATION_PROBLEMS))),
+    roundtripReportPath: path.resolve(options.roundtripReportPath || path.join(artifactDir, path.basename(DEFAULT_VALIDATION_ROUNDTRIP_REPORT))),
+    compilerTruthReportPath: path.resolve(options.compilerTruthReportPath || path.join(artifactDir, path.basename(DEFAULT_VALIDATION_COMPILER_TRUTH_REPORT))),
+    componentContractsDir: path.resolve(options.componentContractsDir || path.join(artifactDir, path.basename(DEFAULT_VALIDATION_CONTRACT_DIR)))
+  };
+}
+
+async function writeValidationArtifacts({ report, problemsPayload, componentContract, paths }) {
+  const contractBuild = sanitizeSegment(componentContract.build || "unknown") || "unknown";
+  const componentContractPath = path.join(paths.componentContractsDir, `${contractBuild}.json`);
+  report.artifacts.component_contract_path = componentContractPath;
+  try {
+    await fs.access(paths.transcriptPath);
+  } catch {
+    await ensureDir(path.dirname(paths.transcriptPath));
+    await fs.writeFile(paths.transcriptPath, "No live validation transcript was produced before validation blocked.\n", "utf8");
+  }
+  await writeJson(paths.problemsPath, problemsPayload);
+  await writeJson(componentContractPath, componentContract);
+  await writeJson(paths.reportPath, report);
+}
+
+export async function runRuntimeValidate(options = {}) {
+  const deps = {
+    runRuntimeRoundtrip,
+    runCommand,
+    loadVscodeProblemsEvidence,
+    readJsonIfExists,
+    writeValidationArtifacts,
+    ...options._deps
+  };
+  const paths = validationArtifactPaths(options);
+  const appPath = options.appPath ? path.resolve(options.appPath) : "";
+  const report = {
+    timestamp: new Date().toISOString(),
+    validation_flow: "deterministic_live_validator_first",
+    rule_id: "VALIDATION_DUAL_SOURCE_REQUIRED_001",
+    app_path: appPath,
+    db_connection_name: options.dbConnectionName || "",
+    apex_root: options.apexRoot || "",
+    live_check_status: "blocked",
+    validation_status: "blocked",
+    warnings_as_errors: true,
+    local_validation_policy: "syntax_hygiene_only",
+    artifacts: {
+      validation_report_path: paths.reportPath,
+      validation_transcript_path: paths.transcriptPath,
+      problems_path: paths.problemsPath,
+      roundtrip_report_path: paths.roundtripReportPath,
+      compiler_truth_report_path: paths.compilerTruthReportPath,
+      component_contract_path: ""
+    },
+    validation_sources: {
+      live_validator: { status: "blocked", source: "runtime validate-only roundtrip" },
+      compiler_truth: { status: "blocked", report_path: paths.compilerTruthReportPath },
+      vscode_problems: { status: "unavailable", source: "unavailable", unresolved_count: null }
+    },
+    problem_count: 0,
+    unresolved_count: 0,
+    blocking_reasons: [],
+    notes: [
+      "Live APEX validate output is authoritative over broad local policy or template prose.",
+      "Local checks are treated as syntax hygiene unless they are generated from the selected target build metadata."
+    ]
+  };
+
+  if (!appPath) {
+    report.blocking_reasons.push("Missing required --app-path");
+  }
+  if (!options.dbConnectionName) {
+    report.blocking_reasons.push("Missing required --db-connection-name");
+  }
+
+  let roundtripResult = null;
+  if (report.blocking_reasons.length === 0) {
+    roundtripResult = await deps.runRuntimeRoundtrip({
+      appPath,
+      dbConnectionName: options.dbConnectionName,
+      executionMode: options.executionMode || "auto",
+      importIntentChoice: "validate-only",
+      importIntentSource: "runtime_validate",
+      targetResolutionMode: options.targetResolutionMode || "update-existing",
+      workspaceId: options.workspaceId || "",
+      supportingObjects: Boolean(options.supportingObjects),
+      preflightOnly: Boolean(options.preflightOnly),
+      apexRoot: options.apexRoot || "",
+      reportPath: paths.roundtripReportPath,
+      transcriptPath: paths.transcriptPath,
+      localValidationPolicy: options.localValidationPolicy || "skip"
+    });
+    report.live_check_status = roundtripResult.payload.live_check_status || roundtripResult.payload.validate_status || "fail";
+    report.validation_sources.live_validator = {
+      status: roundtripResult.code === 0 && report.live_check_status === "pass" ? "pass" : "fail",
+      source: "runtime validate-only roundtrip",
+      report_path: paths.roundtripReportPath,
+      transcript_path: paths.transcriptPath
+    };
+    report.target_build = roundtripResult.payload.target_build || "";
+    report.resolved_apex_build_root = roundtripResult.payload.resolved_apex_build_root || "";
+    report.execution_mode_used = roundtripResult.payload.execution_mode_used || "";
+  }
+
+  const compilerArgs = [
+    compilerTruthAuditToolPath(),
+    "--app-path",
+    appPath || ".",
+    "--verify-component-attributes",
+    "--report-path",
+    paths.compilerTruthReportPath
+  ];
+  if (options.apexRoot) {
+    compilerArgs.push("--oracle-home", options.apexRoot);
+  }
+  const compilerResult = appPath
+    ? await deps.runCommand("node", compilerArgs, { allowFailure: true, passthrough: false })
+    : { code: 1, stdout: "", stderr: "Missing --app-path" };
+  const compilerReport = (await deps.readJsonIfExists(paths.compilerTruthReportPath)) || {};
+  report.validation_sources.compiler_truth = {
+    status: compilerResult.code === 0 && compilerReport.status !== "fail" ? "pass" : "fail",
+    report_path: paths.compilerTruthReportPath,
+    output: cleanOutput(compilerResult).slice(0, 4000)
+  };
+  if (report.validation_sources.compiler_truth.status !== "pass") {
+    report.blocking_reasons.push("Compiler-truth audit failed or was unavailable.");
+  }
+
+  const componentAttributes = (await deps.readJsonIfExists(componentAttributesPath())) || {};
+  const componentContract = buildComponentContracts(componentAttributes, {
+    build: report.target_build || compilerReport?.compilerTruth?.buildID || "",
+    compilerReport,
+    source: report.target_build ? "target-build-component-contract" : "component-attributes-fallback"
+  });
+
+  const vscodeEvidence = await deps.loadVscodeProblemsEvidence({
+    vscodeProblemsPath: options.vscodeProblemsPath || "",
+    appPath
+  });
+  report.validation_sources.vscode_problems = {
+    status: vscodeEvidence.status,
+    source: vscodeEvidence.source,
+    checked_paths: vscodeEvidence.checked_paths,
+    unresolved_count: vscodeEvidence.unresolved_count,
+    blocking_reason: vscodeEvidence.blocking_reason || ""
+  };
+  if (vscodeEvidence.status !== "pass") {
+    report.blocking_reasons.push(vscodeEvidence.blocking_reason || "VSCode Problems diagnostics did not pass.");
+  }
+
+  const transcript = await fs.readFile(paths.transcriptPath, "utf8").catch(() => "");
+  const problems = sortProblems([
+    ...parseTranscriptProblems(transcript),
+    ...compilerTruthProblems(compilerReport),
+    ...vscodeEvidence.problems
+  ]);
+  const unresolvedProblems = problems.filter((problem) => ["error", "warning"].includes(problem.severity));
+  const problemsPayload = {
+    generated_at: new Date().toISOString(),
+    build: componentContract.build,
+    app_path: appPath,
+    live_check_status: report.live_check_status,
+    warnings_as_errors: true,
+    sort_order: ["file", "line", "severity", "compiler_type", "message"],
+    problem_count: problems.length,
+    unresolved_count: unresolvedProblems.length,
+    problems
+  };
+  report.problem_count = problems.length;
+  report.unresolved_count = unresolvedProblems.length;
+  if (unresolvedProblems.length > 0) {
+    report.blocking_reasons.push("problems.json contains unresolved validation problems.");
+  }
+
+  report.validation_status =
+    report.blocking_reasons.length === 0 &&
+    report.validation_sources.live_validator.status === "pass" &&
+    report.validation_sources.compiler_truth.status === "pass" &&
+    report.validation_sources.vscode_problems.status === "pass"
+      ? "pass"
+      : "fail";
+  report.import_eligibility = report.validation_status === "pass" ? "validate-only-passed" : "blocked";
+
+  await deps.writeValidationArtifacts({
+    report,
+    problemsPayload,
+    componentContract,
+    paths
+  });
+  return { code: report.validation_status === "pass" ? 0 : 1, payload: report };
 }
 
 async function resolveCanonicalApplicationIdentityForRuntime(options = {}) {

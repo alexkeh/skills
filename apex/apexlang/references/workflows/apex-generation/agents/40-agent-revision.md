@@ -41,7 +41,7 @@ Inputs
 
 Responsibilities (apply only accepted notes)
 - Respect governance:
-  - Reject any change conflicting with memory-bank/00-guard/ai.guard.md or 10-global/apex.global.md.
+  - Reject any change conflicting with references/policies/memory-bank/00-guard/ai.guard.md or 10-global/apex.global.md.
   - Do not invent attributes or CSS classes; use templates/* only.
   - Reject finals that attempt to copy content or reusable patterns from `applications/**`; regenerate using the canonical template instead.
   - Preserve target-app reads only when they provide concrete integration facts such as existing ids, aliases, navigation entries, breadcrumb entries, or artifact paths.
@@ -85,6 +85,7 @@ Responsibilities (apply only accepted notes)
 - Compact run evidence:
   - Persist a concise list of applied/rejected/deferred notes only when the workflow explicitly stores durable evidence under `the temp-runtime logs directory under `APEXLANG_OUTPUT_ROOT/logs/``.
   - Preserve `compiler-truth-report.json` for generated or revised `.apx` artifacts and block completion when the report is missing or failing.
+  - Preserve `validation-report.json`, `validation-transcript.log`, `problems.json`, and `component-contracts/<build>.json` from `runtime validate`. Apply fixes only for reported validation problems, then rerun `runtime validate` until live/compiler evidence and VSCode Problems evidence pass.
   - Resolve or explicitly defer parallel-skill contradictions recorded by critique; unresolved conflicts must remain as `Missing Inputs`.
 
 Navigation, breadcrumb, and page grouping revisions (non-modal)
@@ -96,7 +97,7 @@ Navigation, breadcrumb, and page grouping revisions (non-modal)
 - For shared-components/component-settings.example.md, normalize direct settings keys to `settings { attributes: {...} }` and preserve existing values.
 - When page_group input is provided or inferable, set pageGroup: @your-group at the page root (not inside appearance/nav/css/security).
 - Do not emit group at page root; group is only valid within region/item templates and must remain unchanged there.
-- Align with memory-bank/30-pages/apex.page.md and Tier‑2 orchestration acceptance rules.
+- Align with references/policies/memory-bank/30-pages/apex.page.md and Tier‑2 orchestration acceptance rules.
 
 - Server-side execution fixes (scope split)
 - When critique requires conversion of page-process executeCode package calls, perform these revisions:
@@ -209,7 +210,7 @@ Import runtime gate reconciliation
 - If the post-check GUI choice resolves to import, also require direct SQLcl import success for the same `resolved_app_path` in the same authenticated SQLcl user session; otherwise record `ONLINE_IMPORT_CONDITIONAL_001`.
 - If local predeploy validation or direct SQLcl roundtrip output reports failure, apply deterministic fixes only for reported issues:
   - vocabulary compatibility failures -> normalize only to canonical `26.1.0+3102` vocabulary by running `node tools/apexctl.mjs apexlang validate --app-path <resolved_app_path> --fix-vocab`, persist report path ``APEXLANG_OUTPUT_ROOT/logs/apexlang-vocab-report.json``, and keep completion blocked until unresolved aliases are zero.
-  - schema contract failures -> prioritize compiler-truth-backed DSL rewrites first; use `component-attributes.json` only as fallback/internal validator context when stronger runtime-backed proof is unavailable.
+  - schema contract failures -> prioritize compiler-truth-backed DSL rewrites first; use `assets/component-attributes.json` only as fallback/internal validator context when stronger runtime-backed proof is unavailable.
   - SQLcl not found -> request a working SQLcl installation on PATH; do not guess command locations.
   - SQLcl validate/import failures -> record actionable revisions and preserve failing command output context in compact run evidence.
 - For runtime/import failures, the master may run up to 2 additional live retries after the first failure (3 total live rounds), but each retry must follow a fix -> local DSL validation -> live rerun sequence.

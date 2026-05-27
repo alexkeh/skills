@@ -35,6 +35,7 @@ Maintain the page grid so that Smart Filters sits visually above or beside the r
 ## Smart Filters Configuration (Non-Negotiable)
 1. `filteredRegion` must point to the static ID of the results region.
    The filtered target must be the page's actual results region, not a map region, not a map layer, and not another filter region.
+   Declare the Smart Filters region before the referenced results region in the page file.
 2. Preserve `templateOptions: #DEFAULT#` unless a documented template-option exception exists. Do not invent classes.
 3. Set `settings.compactNosThreshold` high enough (≥ 10000) to avoid the compact fallback for moderate result counts.
 4. Order filters: primary search first, then categorical filters (checkbox/radio), then range or other specialty filters.

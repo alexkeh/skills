@@ -3,7 +3,7 @@ templateId: base-app-structure.common
 componentType: template
 version: 1.0
 imports:
-  - ../../../../memory-bank/10-global/apex.global.md
+  - references/policies/memory-bank/10-global/apex.global.md
 description: Canonical contract for whole-application base app structure runtime-artifact seeding.
 ---
 
@@ -20,7 +20,7 @@ shared-component customization begins. This family is the canonical
 
 # Generation Rules (MANDATORY)
 
-1. Load `memory-bank/10-global/apex.global.md` and this `_common` file before
+1. Load `references/policies/memory-bank/10-global/apex.global.md` and this `_common` file before
    materializing or validating whole-application output.
 2. Materialize only the named runtime artifacts from
    `templates/base-app-structure/scaffold-example/` into

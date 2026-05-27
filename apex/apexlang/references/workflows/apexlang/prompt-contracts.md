@@ -1,6 +1,6 @@
-# APEXLang Prompt Contracts
+# APEXlang Prompt Contracts
 
-Canonical contract for APEXLang agent prompting. Use this file as the shared rule source for the router and the Draft, Critique, and Revision agents.
+Canonical contract for APEXlang agent prompting. Use this file as the shared rule source for the router and the Draft, Critique, and Revision agents.
 
 ## Purpose
 
@@ -53,7 +53,7 @@ Each entry must include:
 
 ### Generation Plan
 
-Required for non-trivial page, component, or application generation before emitting APEXLang.
+Required for non-trivial page, component, or application generation before emitting APEXlang.
 
 Minimum required fields:
 
@@ -68,7 +68,7 @@ Required response order for non-trivial structural generation:
 
 1. `Compiler Truth Evidence` when required
 2. `Generation Plan`
-3. generated APEXLang
+3. generated APEXlang
 
 ## Workflow Precedence
 
@@ -157,7 +157,7 @@ Valid:
 
 ```text
 Compiler Truth Evidence
-1. Command: node references/policies/apexlang/compiler-prop-map/query-valid-props.mjs --component button --group behavior
+1. Command: node tools/query-valid-props.mjs --component button --group behavior
    Scope: button behavior.target
    Conclusion: same-app redirect target must be `target: { ... }`
    Emitted decision: used declarative target object syntax
@@ -226,7 +226,7 @@ Ownership:
 ### GENERATION_PLAN_REQUIRED_001
 
 Statement:
-- Non-trivial page, component, and application generation must emit a compact Generation Plan before APEXLang.
+- Non-trivial page, component, and application generation must emit a compact Generation Plan before APEXlang.
 
 Why:
 - A frozen plan reduces plan/output drift and accidental re-decisions during emission.
@@ -308,7 +308,7 @@ Ownership:
 - Validator
 - Draft prompt
 - Critique prompt
-- `tools/apexctl.test.mjs`
+- `the source package regression tests`
 
 ### DECLARATIVE_BUTTON_TARGET_REQUIRED
 
@@ -342,7 +342,7 @@ behavior {
 Ownership:
 - Validator
 - Draft prompt
-- `tools/apexctl.test.mjs`
+- `the source package regression tests`
 
 ### TEMPLATE_OPTIONS_MULTILINE_REQUIRED_001
 
@@ -398,10 +398,10 @@ Ownership:
 ### CLASSIC_REPORT_DEFAULT_TEMPLATE_REQUIRED_001
 
 Statement:
-- Classic Report regions must use the canonical shared default template block unless a documented variant explicitly overrides it.
+- Classic Report regions must use the canonical shared `appearance` block and the canonical report-template `componentAppearance` block.
 
 Why:
-- This is a high-drift area where template and import behavior must stay aligned.
+- This is a high-drift area where template and import behavior must stay aligned. Live APEXlang validation on 26.1 maps the Classic Report report template to property `411` and reports missing values as `componentAppearance - template (string)`.
 
 Valid:
 
@@ -412,12 +412,7 @@ appearance {
 }
 componentAppearance {
   template: @/standard
-  templateOptions: [
-    #DEFAULT#
-    t-Report--stretch
-    t-Report--altRowsDefault
-    t-Report--rowHighlight
-  ]
+  templateOptions: #DEFAULT#
 }
 ```
 
@@ -426,6 +421,35 @@ Invalid:
 ```apx
 appearance {
   templateOptions: t-Report--stretch
+}
+```
+
+Ownership:
+- Validator
+- Draft prompt
+
+### CLASSIC_REPORT_COMPONENT_APPEARANCE_REQUIRED_001
+
+Statement:
+- Classic Report regions must emit `componentAppearance.template: @/standard`.
+
+Why:
+- The 26.1 compiler requires property `411` for the Classic Report report-template surface and reports the missing property as `componentAppearance - template (string)`.
+
+Valid:
+
+```apx
+componentAppearance {
+  template: @/standard
+  templateOptions: #DEFAULT#
+}
+```
+
+Invalid:
+
+```apx
+componentAppearance {
+  templateOptions: #DEFAULT#
 }
 ```
 
@@ -459,7 +483,7 @@ layout {
 
 Ownership:
 - Validator
-- `tools/apexctl.test.mjs`
+- `the source package regression tests`
 
 ## Stop Conditions
 

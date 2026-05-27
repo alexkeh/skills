@@ -24,7 +24,7 @@ Inputs
 </task_scope>
 
 <allowed_sources>
-- Always: memory-bank/00-guard/ai.guard.md, 10-global/apex.global.md
+- Always: references/policies/memory-bank/00-guard/ai.guard.md, 10-global/apex.global.md
 - Conditional: 20-data/30-pages/40-components rules only as needed
 - Styling (50-*) only when styling ≠ none
 </allowed_sources>
@@ -105,6 +105,8 @@ Critique checklist (actionable, token-thin)
 - Canonical sources: fail if the draft is justified from `applications/**` examples or exports; all seed content must come from templates and memory-bank guidance, and any target-app reads must be integration-only.
   - Hard-fail `COMPILER_TRUTH_EVIDENCE_REQUIRED_001` when generated or revised `.apx` artifacts lack `compiler-truth-report.json` evidence from `node tools/apexctl.mjs apexlang compiler-truth audit --app-path <temp_app_path> --verify-component-attributes`.
   - Hard-fail `COMPILER_TRUTH_AUDIT_FAILED_001` when the compiler-truth report status is not `pass`; cite the report issue codes before any publish/runtime handoff.
+  - Hard-fail `VALIDATION_DUAL_SOURCE_REQUIRED_001` when validation handoff lacks `problems.json`, target-build compiler-driven evidence, or VSCode Problems diagnostics for generated or revised `.apx` files. Compiler truth alone and VSCode Problems alone are both insufficient.
+  - Require `problems.json` as the compact validation review surface; do not accept terminal transcript spelunking or broad skill-doc search as a substitute.
   - APEXlang-only; SQL in triple backticks.
   - Uses templates/*; no invented attributes or UT classes.
   - Declarative first; heavy logic deferred to DB packages/views.
@@ -171,9 +173,11 @@ Critique checklist (actionable, token-thin)
   - Flag first components in scoped rows that incorrectly set `layout.startNewRow: false`.
   - Flag rows whose explicit `columnSpan` total exceeds 12 within their local scope.
   - Flag rows that mix implicit-flow and explicit-grid placement without an intentional asymmetric pattern.
+  - Do not flag the anchored-sibling asymmetric recipe as invalid mixed layout when the first sibling uses only `columnSpan` and later siblings use `column`.
+  - For true shell compositions such as sidebar + main content, prefer page-template slot layouts such as `leftColumn` + `body` before accepting a body-grid implementation.
   - Allow explicit coordinates only for intentionally asymmetric layouts such as sidebar-main, faceted-search, or parent-child split pages.
   - For master-detail Content Row pages, require a narrow parent region and a child region in the same row with `startNewRow: false`; do not require redundant child `column` / `columnSpan` unless a validated contract needs them.
- - Interactive Report projection gate:
+- Interactive Report projection gate:
   - Hard-fail `IR_PROJECTED_COLUMNS_REQUIRED_001` when an Interactive Report SQL projection lacks matching `column (...)` definitions before finals.
   - Hard-fail `IR_CONTEXT_BIND_SUBMIT_REQUIRED_001` when Interactive Report SQL references same-page page-item binds but `source.pageItemsToSubmit` omits them.
 - Calendar region gate:
@@ -251,14 +255,17 @@ Critique checklist (actionable, token-thin)
   - For BLOB-backed cards images, require `media.image` to map the raw BLOB alias and keep the companion storage columns in the source projection per `references/policies/memory-bank/40-components/apex.region-media.md`; this projection is display-only and remains subject to the SQL/PLSQL LOB comparison-key ban in `20-data/apex.sql.md`.
   - For URL-backed cards images, require `media.image` to map the image-URL column alias or a projected `&COLUMN.` substitution-backed URL value.
 - Classic report default template gate (hard fail when applicable):
-  - For every `classicReport` region, unless `componentAppearance.template: @/contextual-info` is the selected documented variant, require the canonical shared default template block exactly.
+  - For every `classicReport` region, require the canonical shared default template block exactly.
   - Require `appearance { template: @/standard templateOptions: #DEFAULT# }`.
-  - Require `componentAppearance { template: @/standard templateOptions: [#DEFAULT#, t-Report--stretch, t-Report--altRowsDefault, t-Report--rowHighlight] }` with the exact values and order shown in the owning contract.
-  - Fail missing blocks, alternate templates, omitted default report modifiers, extra modifiers, or reordered default modifiers unless the selected scenario contract explicitly documents an override.
+  - Hard-fail `CLASSIC_REPORT_COMPONENT_APPEARANCE_REQUIRED_001` when `componentAppearance.template` is missing, omitted, or not `@/standard`; live compiler validation maps this to property `411` and reports `componentAppearance - template (string)`.
+  - Require `componentAppearance { template: @/standard templateOptions: #DEFAULT# }`.
+  - For the documented `@/contextual-info` variant, require that override through `appearance.template` while keeping `componentAppearance.template: @/standard`.
+  - Fail missing blocks, alternate templates, extra modifiers, or invalid `appearance.templateOptions` / `componentAppearance.templateOptions` formatting unless the selected scenario contract explicitly documents an override.
   - Cite `references/policies/memory-bank/40-components/apex.templates.md`, `references/policies/memory-bank/30-pages/apex.classic-report.md`, and `templates/region-components/classic-report/classic-report.contextual-info.md`.
 - Smart Filters target gate (hard fail when applicable):
   - Hard-fail `SMART_FILTER_RESULTS_REGION_REQUIRED_001` when `filteredRegion` does not reference an existing page results region.
   - Hard-fail `SMART_FILTER_RESULTS_REGION_REQUIRED_001` when `filteredRegion` points to a map region, map layer, Smart Filters region, Faceted Search region, or other non-results alias.
+  - Hard-fail `SMART_FILTER_RESULTS_REGION_ORDER_REQUIRED_001` when a Smart Filters region is declared after the results region referenced by `filteredRegion`.
   - Hard-fail `SMART_FILTER_SEARCH_SOURCE_REQUIRED_001` when a free-text search filter uses an invalid single-column shortcut instead of the canonical `source.dbColumns` contract.
 - Content Row projection gate:
   - Hard-fail when report-mode Content Row omits the PK-backed identity column needed for row actions, selection state, or same-page context binding.
@@ -275,6 +282,14 @@ Critique checklist (actionable, token-thin)
   - Hard-fail when a Metric Card draft emits `settings.displayBadge` instead of `plugin-badge.displayBadge`.
   - Hard-fail when critique rationale assumes settings/plugin hook names must match child-column names one-for-one. Treat those properties as value hooks, not as a second column declaration system.
   - Hard-fail when any Metric Card `rowSelection` mode is present but no child column is marked with `source.primaryKey: true`.
+- Metric Card dashboard chrome gate:
+  - Hard-fail `METRIC_CARD_STANDARD_TEMPLATE_FORBIDDEN_001` when a dashboard KPI Metric Card strip uses visible `@/standard` region chrome without an explicit titled or landmarked wrapper justification.
+- Dashboard layout row plan gate:
+  - Hard-fail `DASHBOARD_LAYOUT_ROW_PLAN_REQUIRED_001` when a dashboard draft omits `layout_row_plan` from the Generation Plan for KPI strips, chart rows, report/detail rows, or side-by-side component rows.
+  - Hard-fail `DASHBOARD_LAYOUT_ROW_PLAN_REQUIRED_001` when `layout_row_plan` entries do not include `slot`, `row`, `recipe`, and ordered `regions` static IDs.
+  - Hard-fail `DASHBOARD_LAYOUT_ROW_PLAN_REQUIRED_001` when a dashboard stacks all chart or content regions without explicit vertical-stack user intent or without marking the stacked region as an intentional detail/full-width section.
+  - For five dashboard charts, require one `two-up-equal` row followed by one `three-up-equal` row unless the prompt explicitly requests a different chart layout.
+  - Cite `references/policies/memory-bank/30-pages/apex.dashboard.md`, `references/policies/memory-bank/30-pages/apex.layout.md`, and `templates/page-examples/dashboard-page/dashboard-page._common.md`.
 - Other report-type template component projection gate:
   - For report-type template components such as Media List and Comments, hard-fail when the generated artifact responds to a missing-column compiler error by adding only one placeholder child column while the source still projects multiple fields.
   - Treat the default expectation for those families as explicit child `column (...)` metadata aligned with the delivered source projection unless a stricter family contract says otherwise.
@@ -312,8 +327,8 @@ Critique checklist (actionable, token-thin)
   - `BREADCRUMB_RULE_PARENT_SCOPE_001` (hard-fail): Flag any breadcrumb entry using `execution { parentEntry: ... }`; execution must not contain `parentEntry`.
   - Shared list/breadcrumb link syntax: enforce `link { target: ... }`; fail `behavior { target: ... }` in shared-components lists/breadcrumbs.
   - Shared component settings syntax: enforce `componentSetting ... settings { attributes: {...} }`; fail direct keys under `settings {}` (for example `display_as`, `mode`).
-  - Grouping key: At page root, forbid group; require pageGroup when grouping is requested. Cite memory-bank/30-pages/apex.page.md. Region/item-level group within templates remains valid and is not flagged.
-- Server-side conditions: Check each `serverSideCondition {}` emitted by the draft. Ensure the type exists in memory-bank/20-data/apex.logic.md, all required attributes are present, and values match the provided `server_side_condition` inputs or the resolved SSC token mapping. For `itemIsInColonDelimitedList` and `itemIsNotInColonDelimitedList`, require `list` in finals; treat legacy `value` as migration input only and flag normalization as Required Revision. Flag missing attributes, unknown tokens, or invented values as Required Revisions (Missing Inputs when data was not supplied).
+  - Grouping key: At page root, forbid group; require pageGroup when grouping is requested. Cite references/policies/memory-bank/30-pages/apex.page.md. Region/item-level group within templates remains valid and is not flagged.
+- Server-side conditions: Check each `serverSideCondition {}` emitted by the draft. Ensure the type exists in references/policies/memory-bank/20-data/apex.logic.md, all required attributes are present, and values match the provided `server_side_condition` inputs or the resolved SSC token mapping. For `itemIsInColonDelimitedList` and `itemIsNotInColonDelimitedList`, require `list` in finals; treat legacy `value` as migration input only and flag normalization as Required Revision. Flag missing attributes, unknown tokens, or invented values as Required Revisions (Missing Inputs when data was not supplied).
 - When a batch SSC draft summary is generated, confirm the summary file exists and lists the targeted components. Fail if the summary was omitted before finals.
 - Faceted-search `listEntries` enforcement (reference-only; policy lives in `references/policies/memory-bank/30-pages/apex.faceted-search.md`):
   - Allow `listEntries.maxDisplayedEntries` only when facet `type` is `checkboxGroup` or `radioGroup`.

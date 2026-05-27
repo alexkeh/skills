@@ -123,7 +123,7 @@ media {
 
 ## Non-Default Media Presentation
 
-Default media presentation is represented by omission: do not emit any APEXLang-side `position`, `appearance`, or `sizing` property for default Cards media. Emit these properties only when the user or spec explicitly asks for a non-default media presentation. Never emit `position: first`, `appearance: square`, or `sizing: cover` just to mirror APEX defaults.
+Default media presentation is represented by omission: do not emit any APEXlang-side `position`, `appearance`, or `sizing` property for default Cards media. Emit these properties only when the user or spec explicitly asks for a non-default media presentation. Never emit `position: first`, `appearance: square`, or `sizing: cover` just to mirror APEX defaults.
 
 When a non-default presentation is required, add only the needed supported properties inside the same `media` block:
 
@@ -142,7 +142,7 @@ sizing: cover
 - For URL-column Cards images, project the URL column in SQL and emit `media { source: urlColumn urlColumn: <URL_COLUMN_ALIAS> }`.
 - For direct image URL Cards images, emit `media { source: imageUrl url: <STATIC_IMAGE_URL_OR_COLUMN_SUBSTITUTION> }`; `url` may be a hard static URL or a substitution such as `&IMAGE_URL_COLUMN.`.
 - In any Cards `media` block, emit at most one source-specific value property: `blobColumn` with `source: blobColumn`, `urlColumn` with `source: urlColumn`, or `url` with `source: imageUrl`.
-- Default media presentation emits no APEXLang-side `position`, `appearance`, or `sizing` property.
+- Default media presentation emits no APEXlang-side `position`, `appearance`, or `sizing` property.
 - Emit `position`, `appearance`, and `sizing` only for explicit non-default media presentation requirements. Accepted values are `position: first | background`, `appearance: square | widescreen`, and `sizing: cover`.
 - Never emit `position: first`, `appearance: square`, or `sizing: cover` just to mirror APEX defaults.
 - Keep BLOB-backed media attributes in the dedicated `media` block. Do not model Cards BLOB images with report-style `column (...)` blocks or report BLOB length expressions.

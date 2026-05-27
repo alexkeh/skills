@@ -35,26 +35,25 @@
 
 ## Default Region Template Choices
 - Use `appearance.template: @/standard` as the default for content-bearing regions unless a family-specific rule explicitly requires another shell.
-- Classic Report hard default: unless a dedicated Classic Report variant explicitly overrides it (currently the `@/contextual-info` variant), every generated Classic Report region must emit this exact default block:
+- Classic Report hard default: every generated Classic Report region must emit these exact default blocks:
   ```apexlang
   appearance {
       template: @/standard
       templateOptions: #DEFAULT#
   }
+
   componentAppearance {
       template: @/standard
-      templateOptions: [
-          #DEFAULT#
-          t-Report--stretch
-          t-Report--altRowsDefault
-          t-Report--rowHighlight
-      ]
+      templateOptions: #DEFAULT#
   }
   ```
+  `appearance` owns the outer region wrapper. `componentAppearance` owns the Classic Report component template required by runtime validation; the 26.1 compiler reports the missing template as property `411`.
 - Keep these families on their own canonical region templates by default:
   - Interactive Report -> `@/interactive-report`
   - Interactive Grid -> family-specific Interactive Grid template
   - Cards -> family-specific Cards template
+  - Dashboard KPI Metric Card strips -> `@/blank-with-attributes`
+- Metric Card regions may use `@/standard` only when the requested design explicitly needs a titled or landmarked visible region wrapper.
 - Keep utility shells on their purpose-built templates rather than forcing `@/standard`, including:
   - breadcrumb or title-bar regions
   - buttons-container regions
@@ -68,6 +67,9 @@
 - Never add child item spans to parent region spans. Grid scope resets inside each parent region or lane.
 - For equal-width sibling rows across standard regions, template-component regions, visible page items, and buttons, prefer sequence ordering plus `startNewRow: false` on second-and-later siblings. Omit `column` and `columnSpan`.
 - Use explicit `column` and `columnSpan` only when the layout is intentionally asymmetric or when the template/example requires precise coordinates.
+- For true shell patterns such as sidebar + main content, prefer page-template semantic slots such as `leftColumn` + `body` before using body-grid coordinates to simulate the shell.
+- Use body-grid coordinates for sidebar/main only when the required width ratio or stacking behavior cannot be matched cleanly by the page template shell.
+- Treat a first sibling with `columnSpan` only plus later siblings with `column` as a valid anchored asymmetric row pattern; do not classify that recipe as invalid mixed layout.
 - Keep recurring outer lanes stable with minimal structural placeholder regions when that preserves layout more cleanly than repeating explicit coordinates row by row.
 - Use native alignment attributes for report/grid columns and region/item placement before considering any class-based workaround.
 - For faceted-search pages, prefer the page template's left-column slot (`leftColumn`) plus the results body slot (`body`) instead of using `body` `columnSpan` values to mimic a sidebar.

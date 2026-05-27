@@ -121,7 +121,8 @@ Form targets may be modal dialogs, drawers, or normal embedded/detail pages base
   - For a single-column primary key, generate one hidden PK item with `source.formRegion`, `source.column`, `source.dataType`, and `primaryKey: true`.
   - For composite primary keys, generate one hidden item for each PK column and set `primaryKey: true` on each PK source mapping.
   - Do not emit `primaryKey: false` placeholders on non-PK form items; omit the property unless the item is a true primary-key mapping.
-  - edit.add: true, edit.update: true, edit.delete: true (delete is naturally guarded by PK not null).
+  - Keep the form region edit block minimal: `edit { enabled: true }`.
+  - Do not emit `edit.add`, `edit.update`, or `edit.delete` on form regions; those operation flags belong to interactive grid edit contracts, not regular forms.
 - Buttons:
     - CANCEL (definedByDynamicAction)
     - CREATE (`serverSideCondition.type: itemIsNull` on the PK item; databaseAction: insert)
@@ -143,7 +144,7 @@ Form targets may be modal dialogs, drawers, or normal embedded/detail pages base
   - Do not emit aliases such as `dialogClosed`; the event token must match the approved dynamic-action event contract exactly.
   - Use the standard template: templates/business-logic/dynamic-actions/dynamic-actions.refresh-region-after-dialog.md.
   - Bind to the specific region(s) affected (e.g., classic report, IR, or IG) as shown in examples.
-  - If you need additional runtime checks, use a `serverSideCondition` from the catalog (memory-bank/20-data/apex.logic.md) and follow the syntax examples documented there when combining DA and component conditions.
+  - If you need additional runtime checks, use a `serverSideCondition` from the catalog (references/policies/memory-bank/20-data/apex.logic.md) and follow the syntax examples documented there when combining DA and component conditions.
 
 - Security and protection:
   - Set pageAccessProtection: argumentsMustHaveChecksum on both parent and form pages.

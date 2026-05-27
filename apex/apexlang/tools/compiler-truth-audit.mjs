@@ -111,7 +111,7 @@ async function pathExists(targetPath) {
 async function collectApxFiles(targetPath) {
   const resolved = path.resolve(targetPath);
   if (!(await pathExists(resolved))) {
-    throw new Error(`APEXLang audit target does not exist: ${targetPath}`);
+    throw new Error(`APEXlang audit target does not exist: ${targetPath}`);
   }
   const stat = await fs.stat(resolved);
   if (stat.isFile()) {

@@ -11,28 +11,29 @@ Required inputs
 Clarify — progressive prompts
 - Do any new or updated components in this modal form require a server-side condition? (Answer "none" to skip.)
 - If yes, specify the component scope (button, region, item, dynamic action, or process) and identifier.
-- Provide the desired condition type or business rule. Valid types are listed in memory-bank/20-data/apex.logic.md under "Server-Side Condition Catalog".
+- Provide the desired condition type or business rule. Valid types are listed in references/policies/memory-bank/20-data/apex.logic.md under "Server-Side Condition Catalog".
 - Gather required attributes for the chosen type (for example, item name, comparison value/list, request value, plsqlExpression, sqlQuery). Missing answers block the workflow.
 
 Load
-- memory-bank/00-guard/ai.guard.md
-- memory-bank/10-global/apex.global.md (+ 10-global/apex.acronyms.md as needed)
-- memory-bank/30-pages/apex.form.md
-- memory-bank/40-components/apex.items.md (if item specifics/LOVs)
-- memory-bank/20-data/apex.sql.md (query standards, LOV SQL)
-- memory-bank/20-data/apex.logic.md (processes, validations, DAs)
+- references/policies/memory-bank/00-guard/ai.guard.md
+- references/policies/memory-bank/10-global/apex.global.md (+ 10-global/apex.acronyms.md as needed)
+- references/policies/memory-bank/30-pages/apex.form.md
+- references/policies/memory-bank/40-components/apex.items.md (if item specifics/LOVs)
+- references/policies/memory-bank/20-data/apex.sql.md (query standards, LOV SQL)
+- references/policies/memory-bank/20-data/apex.logic.md (processes, validations, DAs)
 
 Clarify
 - ARP vs packaged PL/SQL for DML.
 - LOV sources (static vs SQL) and FK behavior.
 - If invoked from calendar `createLink`, confirm the target item that receives the selected calendar value(s) such as start date.
+- Keep create-link selected-date prefill separate from drag/drop persistence. `&APEX$NEW_START_DATE.` is allowed for `createLink.items` date prefills, while `:APEX$NEW_START_DATE` / `:APEX$NEW_END_DATE` remain drag/drop persistence bind variables.
 
 Templates
 - templates/page-examples/form-page/form-page._index.md
 
 References
 - references/policies/governance/00-governance.md
-- memory-bank/rules-mapping.json
+- assets/rules-mapping.json
 
 Completion
 - After Revision, confirm or prompt for ``db_connection_name`, `app_path`, and `application_id`, run `references/ops/runtime-gates/02-direct-sqlcl-validate-gate.md`, then invoke `references/ops/runtime-gates/01-direct-sqlcl-import.md`.
