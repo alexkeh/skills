@@ -1,13 +1,13 @@
 # Agent: Direct SQLcl Import
 
 Purpose
-- Provide the import continuation after the live APEXLang check succeeds for APEXlang artifact workflows after the user explicitly chose import in the post-check GUI flow.
+- Provide the import continuation after the live APEXlang check succeeds for APEXlang artifact workflows after the user explicitly chose import in the post-check GUI flow.
 - Import validated APEXlang artifacts through direct SQLcl commands.
 - Preserve the same-session guarantee between validate and import.
 
 When to invoke
 - Any APEXlang artifact workflow that reaches import-ready state after a post-check GUI choice resolves to import.
-- Standalone import of previously generated artifacts when the live APEXLang check is also available for the same run.
+- Standalone import of previously generated artifacts when the live APEXlang check is also available for the same run.
 
 Preconditions
 - `db_connection_name` is resolved.

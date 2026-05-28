@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate APEXLang DSL contracts and layout rules."""
+"""Validate APEXlang DSL contracts and layout rules."""
 
 from __future__ import annotations
 
@@ -43,6 +43,7 @@ APP_ROOT_FORBIDDEN_TEMPLATE_ARTIFACTS = {
     "base-app-structure._index.md",
     "base-app-structure.registry.json",
 }
+EXPORT_BACKUP_PATH_SEGMENT = "apex-exports"
 SMART_FILTER_ALLOWED_RESULTS_REGION_TYPES = {
     "classicReport",
     "interactiveReport",
@@ -85,6 +86,29 @@ PROJECTION_COVERAGE_REGION_TYPES = {
     "interactiveGrid",
     "contentRow",
     "metricCard",
+}
+DASHBOARD_LAYOUT_ROW_REGION_TYPES = {
+    "cards",
+    "chart",
+    "classicReport",
+    "contentRow",
+    "interactiveGrid",
+    "interactiveReport",
+    "metricCard",
+}
+DASHBOARD_PAGE_KEYWORDS = {
+    "analytics",
+    "dashboard",
+    "kpi",
+    "metric",
+    "summary",
+}
+DASHBOARD_METRIC_FAKE_KEYWORDS = {
+    "kpi",
+    "metric",
+    "metric-card",
+    "metric_card",
+    "summary-card",
 }
 LOB_COMPARISON_RULE_ID = "SQL_PLSQL_LOB_COMPARISON_KEY_FORBIDDEN_001"
 LOB_COMPARISON_REMEDIATION = (
@@ -130,7 +154,7 @@ def load_schema() -> dict:
 
 
 def find_component_blocks(text: str, keyword: str) -> list[tuple[int, str, str]]:
-    """Find named parenthesized APEXLang component blocks by keyword."""
+    """Find named parenthesized APEXlang component blocks by keyword."""
     results: list[tuple[int, str, str]] = []
     pattern = re.compile(rf"^[ \t]*{re.escape(keyword)}\s+([A-Za-z0-9_$-]+)\s*\(", re.MULTILINE)
     for match in pattern.finditer(text):
@@ -296,6 +320,11 @@ def resolve_app_root(path: Path) -> Path | None:
         current = current.parent
 
 
+def is_export_backup_path(path: Path) -> bool:
+    """Return true when a path belongs to an ignored APEX export backup tree."""
+    return EXPORT_BACKUP_PATH_SEGMENT in path.parts
+
+
 def collect_app_roots(paths: list[str]) -> list[Path]:
     """Collect generated app roots from explicit paths or from the default applications tree."""
     app_roots: set[Path] = set()
@@ -310,6 +339,8 @@ def collect_app_roots(paths: list[str]) -> list[Path]:
                     app_roots.add(resolved_root)
                     continue
                 for candidate in sorted(path.rglob("application.apx")):
+                    if is_export_backup_path(candidate):
+                        continue
                     app_root = resolve_app_root(candidate.parent)
                     if app_root:
                         app_roots.add(app_root)
@@ -323,6 +354,8 @@ def collect_app_roots(paths: list[str]) -> list[Path]:
     if not applications_root.exists():
         return []
     for candidate in sorted(applications_root.rglob("application.apx")):
+        if is_export_backup_path(candidate):
+            continue
         app_root = resolve_app_root(candidate.parent)
         if app_root:
             app_roots.add(app_root)
@@ -343,12 +376,9 @@ def lint_app_root_contract(app_root: Path) -> list[str]:
                 f"generated app root contains forbidden template artifact '{entry_name}'"
             )
             continue
-        if entry_name == "apex-exports":
-            issues.append(
-                f"{display_path(entry)}:1: APP_TEMPLATE_ARTIFACT_LEAK_001 "
-                "generated app root must not retain 'apex-exports'; move export backups to "
-                f"'artifacts/apex-exports/{app_root.name}/'"
-            )
+        if entry_name == EXPORT_BACKUP_PATH_SEGMENT:
+            # Backup/export material is ignored by policy even when it sits under
+            # an app root. It must not become validation input or a leak failure.
             continue
         if entry_name not in APP_ROOT_ALLOWED_ENTRIES:
             issues.append(
@@ -491,7 +521,7 @@ def add_scoped_component(
 
 
 def lint_layout_scopes(path: Path, text: str) -> list[str]:
-    """Validate layout scope and grid-coordinate consistency for an APEXLang file."""
+    """Validate layout scope and grid-coordinate consistency for an APEXlang file."""
     issues: list[str] = []
 
     for page_start, page_name, page_block in find_component_blocks(text, "page"):
@@ -645,6 +675,203 @@ def lint_layout_scopes(path: Path, text: str) -> list[str]:
                         f"LAYOUT_RULE_MIXED page '{page_name}' {scope_label} mixes implicit-flow and explicit-grid "
                         f"placement within the same row starting at {first_component_label}"
                     )
+
+    return issues
+
+
+def scalar_props_from_component(block: str) -> dict[str, tuple[str, int]]:
+    """Return immediate scalar component properties by name."""
+    return {
+        prop_name: (prop_value, prop_offset)
+        for prop_name, prop_value, prop_offset in extract_immediate_property_values(block)
+    }
+
+
+def scalar_props_from_brace_block(block: str) -> dict[str, tuple[str, int]]:
+    """Return immediate scalar brace properties by name."""
+    return {
+        prop_name: (prop_value, prop_offset)
+        for prop_name, prop_value, prop_offset in extract_immediate_brace_property_values(block)
+    }
+
+
+def dashboard_region_category(region_type_key: str) -> str:
+    """Classify a region for dashboard row-contract linting."""
+    if region_type_key == "metricCard":
+        return "metric"
+    if region_type_key == "chart":
+        return "chart"
+    if region_type_key in DASHBOARD_LAYOUT_ROW_REGION_TYPES:
+        return "content"
+    return ""
+
+
+def dashboard_page_is_likely(page_name: str, page_block: str, body_regions: list[dict[str, object]]) -> bool:
+    """Return whether a page should receive dashboard-specific layout checks."""
+    page_props = scalar_props_from_component(page_block)
+    page_text_parts = [page_name]
+    for prop_name in ("name", "alias", "title"):
+        prop_meta = page_props.get(prop_name)
+        if prop_meta:
+            page_text_parts.append(clean_scalar_value(prop_meta[0]))
+    page_text = " ".join(page_text_parts).lower()
+    if any(keyword in page_text for keyword in DASHBOARD_PAGE_KEYWORDS):
+        return True
+
+    categories = [str(region.get("category") or "") for region in body_regions]
+    if categories.count("chart") >= 2 or categories.count("metric") >= 2:
+        return True
+    return "chart" in categories and "metric" in categories
+
+
+def metric_card_standard_template_is_justified(region_block: str) -> bool:
+    """Return whether the region text explicitly justifies visible standard chrome."""
+    normalized = region_block.lower()
+    justification_terms = (
+        "standard metric card wrapper justified",
+        "titled wrapper",
+        "landmarked wrapper",
+        "visible region chrome",
+        "visible standard region chrome",
+    )
+    return any(term in normalized for term in justification_terms)
+
+
+def static_region_fakes_metric_card(region_name: str, region_block: str, top_level_blocks: dict[str, tuple[int, str]]) -> bool:
+    """Detect static HTML regions that appear to fake a KPI Metric Card."""
+    region_props = scalar_props_from_component(region_block)
+    label_parts = [region_name]
+    name_meta = region_props.get("name")
+    if name_meta:
+        label_parts.append(clean_scalar_value(name_meta[0]))
+    label_text = " ".join(label_parts).lower()
+
+    source_meta = top_level_blocks.get("source")
+    source_text = ""
+    if source_meta:
+        _source_offset, source_block = source_meta
+        source_text = extract_fenced_property_body(source_block, "htmlCode") or source_block
+    source_text = source_text.lower()
+
+    has_metric_label = any(keyword in label_text for keyword in DASHBOARD_METRIC_FAKE_KEYWORDS)
+    has_metric_markup = any(keyword in source_text for keyword in ("metric-card", "metric_card", "kpi-card", "kpi_card"))
+    return bool(source_text.strip()) and (has_metric_label or has_metric_markup)
+
+
+def lint_dashboard_layout_contracts(path: Path, text: str) -> list[str]:
+    """Validate dashboard-specific Metric Card and BODY row layout contracts."""
+    issues: list[str] = []
+
+    for page_start, page_name, page_block in find_component_blocks(text, "page"):
+        body_regions: list[dict[str, object]] = []
+
+        for index, (region_offset, region_name, region_block) in enumerate(
+            find_immediate_component_blocks(page_block, "region")
+        ):
+            region_type = extract_item_type(region_block) or ""
+            region_type_key = region_schema_key(region_type)
+            top_level_blocks = extract_top_level_blocks(region_block)
+            layout_meta = top_level_blocks.get("layout")
+            if not layout_meta:
+                continue
+            layout_offset, layout_block = layout_meta
+            layout_props = layout_properties(layout_block)
+            slot = clean_scalar_value(layout_props.get("slot", ("", 0))[0]).lower()
+            parent_region = layout_props.get("parentRegion", ("", 0))[0]
+            if slot != "body" or parent_region:
+                continue
+
+            appearance_template = ""
+            appearance_meta = top_level_blocks.get("appearance")
+            if appearance_meta:
+                _appearance_offset, appearance_block = appearance_meta
+                appearance_props = scalar_props_from_brace_block(appearance_block)
+                appearance_template = clean_scalar_value(appearance_props.get("template", ("", 0))[0])
+
+            body_regions.append(
+                {
+                    "name": region_name,
+                    "region_type": region_type,
+                    "region_type_key": region_type_key,
+                    "category": dashboard_region_category(region_type_key),
+                    "start": page_start + region_offset,
+                    "layout_offset": page_start + region_offset + layout_offset,
+                    "sequence": parse_int(layout_props.get("sequence", ("", 0))[0] or None) or (index + 1) * 10,
+                    "start_new_row": clean_scalar_value(layout_props.get("startNewRow", ("", 0))[0]).lower(),
+                    "column": parse_int(layout_props.get("column", ("", 0))[0] or None),
+                    "column_span": parse_int(layout_props.get("columnSpan", ("", 0))[0] or None),
+                    "appearance_template": appearance_template,
+                    "block": region_block,
+                    "top_level_blocks": top_level_blocks,
+                }
+            )
+
+        if not body_regions or not dashboard_page_is_likely(page_name, page_block, body_regions):
+            continue
+
+        ordered_body_regions = sorted(body_regions, key=lambda entry: (int(entry["sequence"]), int(entry["start"])))
+        metric_run: list[dict[str, object]] = []
+
+        def flush_metric_run() -> None:
+            if len(metric_run) < 2:
+                return
+            first_metric = metric_run[0]
+            issues.append(
+                f"{display_path(path)}:{line_no(text, int(first_metric['start']))}: "
+                f"METRIC_CARD_REGION_NORMALIZATION_REQUIRED_001 page '{page_name}' dashboard KPI strip has "
+                f"{len(metric_run)} sibling Metric Card regions; use one normalized Metric Card region with one source row per metric"
+            )
+
+        previous: dict[str, object] | None = None
+        for region in ordered_body_regions:
+            category = str(region.get("category") or "")
+            if category == "metric":
+                metric_run.append(region)
+            else:
+                flush_metric_run()
+                metric_run = []
+
+            region_type_key = str(region["region_type_key"])
+            appearance_template = str(region["appearance_template"])
+            if (
+                region_type_key == "metricCard"
+                and appearance_template == "@/standard"
+                and not metric_card_standard_template_is_justified(str(region["block"]))
+            ):
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, int(region['start']))}: "
+                    f"METRIC_CARD_STANDARD_TEMPLATE_FORBIDDEN_001 page '{page_name}' dashboard KPI Metric Card "
+                    f"region '{region['name']}' must use @/blank-with-attributes unless visible standard chrome is explicitly titled or landmarked"
+                )
+
+            if (
+                region_type_key == "staticContent"
+                and appearance_template == "@/standard"
+                and static_region_fakes_metric_card(str(region["name"]), str(region["block"]), region["top_level_blocks"])  # type: ignore[arg-type]
+            ):
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, int(region['start']))}: "
+                    f"STATIC_REGION_METRIC_CARD_FAKE_FORBIDDEN_001 page '{page_name}' static region "
+                    f"'{region['name']}' must not fake KPI Metric Cards with standard/static markup; use themeTemplateComponent/metricCard"
+                )
+
+            if previous:
+                previous_category = str(previous.get("category") or "")
+                same_dashboard_row_family = category and category == previous_category
+                lacks_same_row_marker = region["start_new_row"] != "false"
+                current_explicit = region["column"] is not None or region["column_span"] is not None
+                previous_explicit = previous["column"] is not None or previous["column_span"] is not None
+                if same_dashboard_row_family and lacks_same_row_marker and not current_explicit and not previous_explicit:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, int(region['layout_offset']))}: "
+                        f"DASHBOARD_LAYOUT_ROW_PLAN_REQUIRED_001 page '{page_name}' dashboard BODY {category} region "
+                        f"'{region['name']}' is stacked by omission; define layout_row_plan and set layout.startNewRow: false "
+                        "on second-and-later equal-width siblings"
+                    )
+
+            previous = region
+
+        flush_metric_run()
 
     return issues
 
@@ -1640,7 +1867,7 @@ def load_schema_dictionary_columns() -> dict[str, list[str]]:
 
 
 def collect_rest_profiles_from_text(text: str) -> dict[str, list[str]]:
-    """Collect REST data profile columns from restDataSource blocks in APEXLang text."""
+    """Collect REST data profile columns from restDataSource blocks in APEXlang text."""
     profiles: dict[str, list[str]] = {}
     for _offset, rest_name, rest_block in find_component_blocks(text, "restDataSource"):
         columns: list[str] = []
@@ -2244,15 +2471,9 @@ def lint_report_column_rendering(path: Path, text: str) -> list[str]:
 
 
 def lint_classic_report_default_templates(path: Path, text: str) -> list[str]:
-    """Validate the hard default template block for classic report regions."""
+    """Validate classic report region and report-template defaults."""
     issues: list[str] = []
     default_appearance_options = ["#DEFAULT#"]
-    default_component_options = [
-        "#DEFAULT#",
-        "t-Report--stretch",
-        "t-Report--altRowsDefault",
-        "t-Report--rowHighlight",
-    ]
 
     def property_value(block_text: str, prop_name: str) -> tuple[str, int] | None:
         for found_name, found_value, found_offset in extract_property_values(block_text):
@@ -2275,13 +2496,6 @@ def lint_classic_report_default_templates(path: Path, text: str) -> list[str]:
 
         top_level_blocks = extract_top_level_blocks(region_block)
         component_label = f"region '{region_name}' type 'classicReport'"
-
-        component_meta = top_level_blocks.get("componentAppearance")
-        if component_meta:
-            component_offset, component_block = component_meta
-            component_template_meta = property_value(component_block, "template")
-            if component_template_meta and clean_scalar_value(component_template_meta[0]) == "@/contextual-info":
-                continue
 
         appearance_meta = top_level_blocks.get("appearance")
         if not appearance_meta:
@@ -2311,35 +2525,36 @@ def lint_classic_report_default_templates(path: Path, text: str) -> list[str]:
                     "must be exactly '#DEFAULT#'"
                 )
 
+        component_meta = top_level_blocks.get("componentAppearance")
         if not component_meta:
             issues.append(
                 f"{display_path(path)}:{line_no(text, region_start)}: "
-                f"CLASSIC_REPORT_DEFAULT_TEMPLATE_REQUIRED_001 {component_label} must define "
-                "componentAppearance with the canonical Classic Report default template block"
+                f"CLASSIC_REPORT_COMPONENT_APPEARANCE_REQUIRED_001 {component_label} must define "
+                "componentAppearance.template; live validation reports Missing required parameter (411): "
+                "componentAppearance - template (string)"
             )
-            continue
+        else:
+            component_offset, component_block = component_meta
+            component_template_meta = property_value(component_block, "template")
+            if not component_template_meta or clean_scalar_value(component_template_meta[0]) != "@/standard":
+                issue_offset = component_offset + (
+                    component_template_meta[1] if component_template_meta else 0
+                )
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, region_start + issue_offset)}: "
+                    f"CLASSIC_REPORT_COMPONENT_APPEARANCE_REQUIRED_001 {component_label} "
+                    "componentAppearance.template must default to '@/standard' for compiler property 411"
+                )
 
-        component_offset, component_block = component_meta
-        component_template_meta = property_value(component_block, "template")
-        if not component_template_meta or clean_scalar_value(component_template_meta[0]) != "@/standard":
-            issue_offset = component_offset + (
-                component_template_meta[1] if component_template_meta else 0
-            )
-            issues.append(
-                f"{display_path(path)}:{line_no(text, region_start + issue_offset)}: "
-                f"DSL_RULE_VALUE {component_label} componentAppearance.template must default to '@/standard' unless the region uses the documented '@/contextual-info' variant"
-            )
-
-        component_options = template_options(component_block)
-        component_values = [value for value, _offset in component_options]
-        if component_values != default_component_options:
-            issue_offset = component_offset + (component_options[0][1] if component_options else 0)
-            issues.append(
-                f"{display_path(path)}:{line_no(text, region_start + issue_offset)}: "
-                f"CLASSIC_REPORT_DEFAULT_TEMPLATE_REQUIRED_001 {component_label} componentAppearance.templateOptions "
-                "must be exactly '#DEFAULT#', 't-Report--stretch', 't-Report--altRowsDefault', "
-                "'t-Report--rowHighlight' in that order"
-            )
+            component_options = template_options(component_block)
+            component_values = [value for value, _offset in component_options]
+            if component_values != default_appearance_options:
+                issue_offset = component_offset + (component_options[0][1] if component_options else 0)
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, region_start + issue_offset)}: "
+                    f"CLASSIC_REPORT_DEFAULT_TEMPLATE_REQUIRED_001 {component_label} componentAppearance.templateOptions "
+                    "must be exactly '#DEFAULT#'"
+                )
 
     return issues
 
@@ -2373,11 +2588,11 @@ def lint_classic_report_hidden_column_headings(path: Path, text: str) -> list[st
 def lint_smart_filter_results_regions(path: Path, text: str) -> list[str]:
     """Validate Smart Filters filteredRegion targets point to compatible results regions."""
     issues: list[str] = []
-    region_types: dict[str, str] = {}
-    for _start, region_name, region_block in find_component_blocks(text, "region"):
+    region_meta: dict[str, tuple[int, str]] = {}
+    for region_start, region_name, region_block in find_component_blocks(text, "region"):
         region_type = extract_item_type(region_block)
         if region_type:
-            region_types[region_name] = region_schema_key(region_type)
+            region_meta[region_name] = (region_start, region_schema_key(region_type))
 
     for region_start, region_name, region_block in find_component_blocks(text, "region"):
         region_type = extract_item_type(region_block)
@@ -2399,14 +2614,15 @@ def lint_smart_filter_results_regions(path: Path, text: str) -> list[str]:
         filtered_region = clean_scalar_value(filtered_value).lstrip("@")
         if not filtered_region or "{{" in filtered_region:
             continue
-        target_region_type = region_types.get(filtered_region)
-        if target_region_type is None:
+        target_region_meta = region_meta.get(filtered_region)
+        if target_region_meta is None:
             issues.append(
                 f"{display_path(path)}:{line_no(text, region_start + source_offset + filtered_offset)}: "
                 f"SMART_FILTER_RESULTS_REGION_REQUIRED_001 {component_label} filteredRegion must reference an "
                 "existing page results region"
             )
             continue
+        target_region_start, target_region_type = target_region_meta
         if (
             target_region_type in SMART_FILTER_FORBIDDEN_RESULTS_REGION_TYPES
             or target_region_type not in SMART_FILTER_ALLOWED_RESULTS_REGION_TYPES
@@ -2415,6 +2631,13 @@ def lint_smart_filter_results_regions(path: Path, text: str) -> list[str]:
                 f"{display_path(path)}:{line_no(text, region_start + source_offset + filtered_offset)}: "
                 f"SMART_FILTER_RESULTS_REGION_REQUIRED_001 {component_label} filteredRegion must reference a "
                 "compatible results region and must not target maps or filter regions"
+            )
+            continue
+        if target_region_start < region_start:
+            issues.append(
+                f"{display_path(path)}:{line_no(text, region_start + source_offset + filtered_offset)}: "
+                f"SMART_FILTER_RESULTS_REGION_ORDER_REQUIRED_001 {component_label} must appear before "
+                f"filteredRegion '{filtered_region}' so Smart Filters are declared before the region they filter"
             )
     return issues
 
@@ -4417,7 +4640,7 @@ def lint_form_primary_key_contract(path: Path, text: str) -> list[str]:
 
 
 def lint_form_edit_contract(path: Path, text: str) -> list[str]:
-    """Reject stale form edit.allowedOperations syntax."""
+    """Reject interactive-grid edit operations leaking into form regions."""
     issues: list[str] = []
 
     for page_start, page_name, page_block in find_component_blocks(text, "page"):
@@ -4431,14 +4654,23 @@ def lint_form_edit_contract(path: Path, text: str) -> list[str]:
             edit_offset, edit_block = edit_meta
             edit_props = block_property_map(edit_block)
             allowed_ops_meta = edit_props.get("allowedOperations")
-            if not allowed_ops_meta:
-                continue
-            _allowed_ops_value, allowed_ops_offset = allowed_ops_meta
-            issues.append(
-                f"{display_path(path)}:{line_no(text, page_start + region_offset + edit_offset + allowed_ops_offset)}: "
-                f"FORM_EDIT_ALLOWED_OPERATIONS_LEGACY_001 page '{page_name}' form region '{region_name}' "
-                "must not define edit.allowedOperations; use direct edit.add, edit.update, and edit.delete properties"
-            )
+            if allowed_ops_meta:
+                _allowed_ops_value, allowed_ops_offset = allowed_ops_meta
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, page_start + region_offset + edit_offset + allowed_ops_offset)}: "
+                    f"FORM_EDIT_ALLOWED_OPERATIONS_LEGACY_001 page '{page_name}' form region '{region_name}' "
+                    "must not define edit.allowedOperations; form regions may emit only edit.enabled: true"
+                )
+            for invalid_prop in ("add", "update", "delete"):
+                invalid_prop_meta = edit_props.get(invalid_prop)
+                if not invalid_prop_meta:
+                    continue
+                _invalid_prop_value, invalid_prop_offset = invalid_prop_meta
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, page_start + region_offset + edit_offset + invalid_prop_offset)}: "
+                    f"FORM_EDIT_OPERATION_FLAG_INVALID_001 page '{page_name}' form region '{region_name}' "
+                    f"must not define edit.{invalid_prop}; form regions may emit only edit.enabled: true"
+                )
 
     return issues
 
@@ -4965,7 +5197,7 @@ def lint_dynamic_action_contract(path: Path, text: str) -> list[str]:
 
             issues.append(
                 f"{display_path(path)}:{line_no(text, start + action_offset + block_offset + event_meta[1])}: "
-                f"DSL_RULE_PROP dynamicAction '{dynamic_action_name}' action '{action_name}' execution.event must not be emitted; current APEXLang compilers ignore it"
+                f"DSL_RULE_PROP dynamicAction '{dynamic_action_name}' action '{action_name}' execution.event must not be emitted; current APEXlang compilers ignore it"
             )
 
     return issues
@@ -5003,6 +5235,9 @@ def _lint_multiline_structure_segment(path: Path, full_text: str, segment_text: 
 
         inline_object_match = re.match(r"^\s*([A-Za-z][A-Za-z0-9]*)\s*:\s*\{(.*)$", line)
         if inline_object_match:
+            if re.match(r"^\s*[A-Za-z][A-Za-z0-9]*\s*:\s*\{\{", line):
+                offset += len(raw_line)
+                continue
             trailing = inline_object_match.group(2).strip()
             if trailing:
                 issues.append(
@@ -5329,6 +5564,7 @@ def lint_calendar_template_contract(ctx: LintContext) -> list[str]:
 
 APX_LINTERS: list[LintRunner] = [
     _ctx_path_text_lint(lint_layout_scopes),
+    _ctx_path_text_lint(lint_dashboard_layout_contracts),
     _ctx_path_text_lint(lint_template_option_arrays),
     _ctx_path_text_lint(lint_multiline_structure_rules),
     _ctx_path_text_lint(lint_live_compiler_slot_contract),
@@ -5445,9 +5681,13 @@ def main(argv: list[str]) -> int:
         return 0
 
     app_roots = collect_app_roots(args.paths)
-    targets = collect_targets(args.paths, (".apx",))
+    targets = [target for target in collect_targets(args.paths, (".apx",)) if not is_export_backup_path(target)]
     if not targets:
-        targets = sorted((ROOT / "applications").rglob("*.apx"))
+        targets = [
+            target
+            for target in sorted((ROOT / "applications").rglob("*.apx"))
+            if not is_export_backup_path(target)
+        ]
     validation_context = build_validation_context(targets)
 
     issues: list[str] = []

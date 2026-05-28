@@ -54,6 +54,7 @@ region {{regionStaticId}} (
 # Guardrails
 
 - `filteredRegion` must reference an existing results region with compatible source columns.
+- The Smart Filters region must be declared before the referenced `filteredRegion` in the page file.
 - `filteredRegion` must not reference a map region, map layer, Smart Filters region, Faceted Search region, or any other non-results alias.
 - For map + filter pages, keep Smart Filters bound to the authoritative results region and treat the map as a companion visualization.
 - Filter LOV/value definitions must match result columns.

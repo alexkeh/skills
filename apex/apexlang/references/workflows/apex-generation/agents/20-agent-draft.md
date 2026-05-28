@@ -31,9 +31,9 @@ Inputs
 - **Target-app isolation:** For app-scoped work, read the resolved target app only for integration facts such as ids, aliases, navigation entries, breadcrumb entries, and artifact paths. Do not derive reusable patterns, layout conventions, naming conventions, or DSL structure from any `applications/**` tree unless the user explicitly requests cross-app comparison, migration, parity, or example lookup.
 - **Schema contract:** When `assets/component-attributes.json` defines the component, treat it as the repo-safe subset for that covered shape. Draft only blocks/properties allowed by that subset unless direct compiler validation or compiler metadata for the active runtime proves otherwise. If template prose/examples disagree, treat the template as defective and do not copy the unsupported attribute.
 - **Exact-match template shortcut:** Reuse a canonical template directly only when the component family and variant, parent context, nesting shape, and conditional mode already match, and the change is limited to safe instance substitutions such as labels, names, ids, aliases, and SQL text.
-- **Compiler-truth escalation:** If no exact-match template exists, or the edit introduces a new property, nested block, enum token, slot, template option, or layout attribute, query compiler-backed truth with `references/policies/apexlang/compiler-prop-map/query-valid-props.mjs` before drafting. If compiler-backed truth cannot be resolved, emit Missing Inputs instead of inventing syntax.
+- **Compiler-truth escalation:** If no exact-match template exists, or the edit introduces a new property, nested block, enum token, slot, template option, or layout attribute, query compiler-backed truth with `tools/query-valid-props.mjs` before drafting. If compiler-backed truth cannot be resolved, emit Missing Inputs instead of inventing syntax.
 - **Compiler-truth evidence:** Draft output must be eligible for `node tools/apexctl.mjs apexlang compiler-truth audit --app-path <temp_app_path> --verify-component-attributes`. Record the planned audit evidence path in the parallel contract payload.
-- **Authority order:** For APEXlang shape decisions, direct compiler validation or compiler metadata outranks `component-attributes.json`, which outranks template prose and examples.
+- **Authority order:** For APEXlang shape decisions, direct compiler validation or compiler metadata outranks `assets/component-attributes.json`, which outranks template prose and examples.
 </allowed_sources>
 
 <exact_match_policy>
@@ -43,17 +43,17 @@ Inputs
 
 <compiler_truth_contract>
 - Follow `COMPILER_TRUTH_EVIDENCE_REQUIRED_001`.
-- If no exact-match template exists, or the edit introduces a new property, nested block, enum token, slot, template option, or layout attribute, query compiler-backed truth with `references/policies/apexlang/compiler-prop-map/query-valid-props.mjs` before drafting.
-- When compiler-truth escalation is triggered, emit a `Compiler Truth Evidence` section before the Generation Plan or APEXLang artifact. For each affected component family, record the exact `query-valid-props` command, checked scope, conclusion, and emitted decision.
+- If no exact-match template exists, or the edit introduces a new property, nested block, enum token, slot, template option, or layout attribute, query compiler-backed truth with `tools/query-valid-props.mjs` before drafting.
+- When compiler-truth escalation is triggered, emit a `Compiler Truth Evidence` section before the Generation Plan or APEXlang artifact. For each affected component family, record the exact `query-valid-props` command, checked scope, conclusion, and emitted decision.
 - Draft output must be eligible for `node tools/apexctl.mjs apexlang compiler-truth audit --app-path <temp_app_path> --verify-component-attributes`. Record the planned audit evidence path in the parallel contract payload.
 - Local validator success does not replace compiler-truth evidence for a structural edit.
 </compiler_truth_contract>
 
 <generation_plan_contract>
 - Follow `GENERATION_PLAN_REQUIRED_001`.
-- For non-trivial page, component, or application generation, emit a compact `Generation Plan` section before the APEXLang artifact.
+- For non-trivial page, component, or application generation, emit a compact `Generation Plan` section before the APEXlang artifact.
 - The plan must include the minimum required fields from the shared contract: target artifact scope, exact template family or variant, region/item/button inventory in output order when applicable, source mode decisions such as `table/view` vs `sql`, navigation or target decisions, and compiler-truth evidence references when required.
-- Response order for non-trivial structural generation is: `Compiler Truth Evidence` when required, then `Generation Plan`, then generated APEXLang.
+- Response order for non-trivial structural generation is: `Compiler Truth Evidence` when required, then `Generation Plan`, then generated APEXlang.
 </generation_plan_contract>
 
 <output_contract>
@@ -61,7 +61,7 @@ Inputs
 - Emit one property per line.
 - For object-valued properties, emit `name: {` on its own line and place nested properties on following lines.
 - Never compress nested property-objects onto one line.
-- Direct compiler validation or compiler metadata outranks exact-match templates/examples; `component-attributes.json` is a repo-safe subset and fallback note after those stronger sources are exhausted.
+- Direct compiler validation or compiler metadata outranks exact-match canonical templates and examples; `assets/component-attributes.json` is a repo-safe subset and fallback note after those stronger sources are exhausted.
 </output_contract>
 
 <stop_conditions>
@@ -94,6 +94,7 @@ Detailed constraints
 - **Metric Card projection coverage:** In report mode, emit explicit child `column (...)` metadata for every delivered source projection before finals. Do not stop after a single compiler-satisfying column when the source projects multiple fields.
 - **Metric Card multi-card source pattern:** A single Metric Card region may render multiple cards from multiple rows. When the user wants several independent metrics in one region, prefer a normalized multi-row source, usually `UNION ALL` across one SELECT per metric so every row projects the same aliases in the same order.
 - **Metric Card property surface:** Do not assume Metric Card only exposes `settings.title` and `settings.metric`. Use the accepted `settings`, `plugin-avatar`, `plugin-badge`, and `rowSelection` surface from the family guidance, and do not require those property names to mirror child-column names one-for-one. For Metric Card avatar rendering, use `plugin-avatar.displayAvatar` plus the typed avatar payload inside `plugin-avatar`. For Metric Card badge rendering, use `plugin-badge.displayBadge` plus badge fields inside `plugin-badge`. Do not emit Metric Card `settings.displayAvatar` or `settings.displayBadge`.
+- **Dashboard layout row planning:** For dashboards, create a `layout_row_plan` in the Generation Plan before emitting KPI strips, chart rows, report/detail rows, or side-by-side component rows. Each entry must include `slot`, `row`, `recipe`, and ordered `regions` static IDs. KPI strips default to one normalized Metric Card region with `recipe: metric-card-strip`. Default chart rows are: 2 charts -> one `two-up-equal`; 3 charts -> one `three-up-equal`; 4 charts -> two `two-up-equal`; 5 charts -> one `two-up-equal` then one `three-up-equal`; more than 5 charts -> repeat `two-up-equal` and `three-up-equal` while preferring balanced rows. Do not literally stack multiple dashboard charts unless the user explicitly requests vertical stacking or a chart is intentionally a detail/full-width section.
 - **Report-type template component projection coverage:** Apply the same default to other report-type template components such as Media List and Comments: emit explicit child `column (...)` metadata matching the delivered source projection by default, not just the minimum needed to satisfy a first compiler error.
 - **Interactive Report projection coverage:** Emit explicit `column (...)` definitions for every Interactive Report SQL projection before finals; visible business, derived, status, and action columns need display metadata and comments, while hidden technical columns still need headings.
 - **Classic Report projection coverage:** Emit explicit `column (...)` definitions for every delivered Classic Report SQL/table projection before finals. When row navigation is intended, keep the PK as an explicit declarative-navigation column; otherwise keep the PK hidden.
@@ -104,7 +105,7 @@ Detailed constraints
 - **Calendar drag/drop persistence:** When `dragAndDrop: true`, always update the start-date column using `:APEX$PK_VALUE` and `:APEX$NEW_START_DATE`. Update the end-date column with `:APEX$NEW_END_DATE` only when the calendar contract also defines `endDateColumn`; do not require `endDateColumn` just to enable drag/drop.
 - **Composite template options:** If a template or valid-values catalog shows a whitespace-joined UT option such as `t-Region--hideHeader js-addHiddenHeadingRoleDesc`, copy it atomically as one `templateOptions` entry; never split it into multiple values.
 - **Exact template-option values:** Keep `#DEFAULT#` as its own entry, keep documented composite values atomic, and pass only the documented accepted value for the family. Never concatenate `#DEFAULT#` with another token and never emit a legacy alias when the owning family documents emitted CSS/composite values instead, for example use `t-CardsRegion--styleA` rather than `style-a`.
-- **Classic Report default templates:** For every `classicReport` region, emit the canonical shared default block exactly unless the selected scenario is the dedicated `@/contextual-info` variant: `appearance { template: @/standard templateOptions: #DEFAULT# }` plus `componentAppearance { template: @/standard templateOptions: [#DEFAULT#, t-Report--stretch, t-Report--altRowsDefault, t-Report--rowHighlight] }` using the standard multi-line array formatting shown in the owning contract.
+- **Classic Report default templates:** For every `classicReport` region, emit the canonical shared defaults exactly as `appearance { template: @/standard templateOptions: #DEFAULT# }` plus `componentAppearance { template: @/standard templateOptions: #DEFAULT# }`. Live compiler validation for 26.1 maps missing report template to property `411` and reports `componentAppearance - template (string)`, so never omit the Classic Report `componentAppearance.template`. For the documented wrapper variant, switch `appearance.template` to `@/contextual-info` while keeping `componentAppearance.template: @/standard`.
 - **Button template-option values:** For button `appearance.templateOptions`, emit only canonical button-family UT class values such as `t-Button--iconLeft`, `t-Button--hoverIconPush`, `t-Button--mobileHideLabel`, `t-Button--primary`, `t-Button--simple`, `t-Button--tiny`, and `t-Button--stretch`. Never emit aliases/static_ids or naked suffix tokens such as `left`, `push`, `hide-label-on-mobile`, `primary`, or `tiny`.
 - **Template-option array formatting:** When a `templateOptions` array contains more than one accepted value, emit a bracketed multi-line array with one accepted value per line. Never emit inline comma-separated arrays such as `[#DEFAULT#, t-Report--stretch]`.
 - **DSL format:** Emit APEXlang exclusively; wrap SQL in triple backticks.
@@ -127,19 +128,19 @@ Detailed constraints
 - **Batch contract normalization:**
   - For batch target types, normalize legacy keys (`target_pages`, `target_items`, `target_buttons`, `target_button`, `apply_to`) into canonical `targets` before drafting.
   - Preserve backward compatibility in inputs, but produce draft summaries/change-log payloads using canonical `targets` + `operation`.
-- **Rule loading:** Follow `memory-bank/rules-mapping.json` (00-guard + 10-global always; add 20/30/40/50 partitions only when needed).
+- **Rule loading:** Follow `assets/rules-mapping.json` (00-guard + 10-global always; add 20/30/40/50 partitions only when needed).
 - **Fallback behavior:** If the target app plus governance/templates do not provide enough information to draft safely, emit Missing Inputs or ask the user. Do not use any `applications/**` tree as a fallback reference.
 - **Prerequisite metadata gate (all APEX artifact runs):**
   - Resolve `prereq_source` before drafting any APEX artifact.
   - Ask whether the run should use `offline` or `live DB` first for interactive DB-backed flows.
-  - If `offline` is chosen, inspect `references/policies/db/index.json` and eligible `references/policies/db/*.md` schema dictionaries.
+  - If `offline` is chosen, inspect `assets/workspace-intelligence.json` and eligible `workspace schema dictionaries discovered by `node tools/apexctl.mjs workspace probe`` schema dictionaries.
   - If `live DB` is chosen and the user does not already know the target connection, traverse saved SQLcl connections and ask the user to choose one before falling back to manual `db_connection_name` entry.
   - Require the user to specify the corresponding APEX workspace name before live metadata validation, `apex validate`, `apex import`, runtime diagnostics, or new-app materialization.
   - Treat `prereq_source: schema_doc` as valid for offline metadata reasoning only.
   - Treat `db_mode: online` as requiring explicit `db_connection_name` and the corresponding APEX workspace name.
   - Treat `db_mode: offline` as explicit user confirmation only; never infer it.
   - In offline mode, do not attempt live metadata validation, `apex validate`, or `apex import`.
-- **Layout planning:** Load `30-pages/apex.layout.md` for page-scoped runs. Build row recipes per layout scope: page slot rows, nested `parentRegion` rows, item rows by `layout.region + layout.slot`, and button rows by `layout.region + layout.slot`. Generated `applications/**` finals are linted with the same deterministic layout rules as drafts. For equal-width rows, emit sequence ordering plus `startNewRow: false` on second-and-later siblings and omit `column` / `columnSpan`. For master-detail Content Row pages, use the `master-detail-content-row` recipe: narrow parent Content Row first, child report second with `startNewRow: false`, hidden parent context item, and child action buttons in the child report toolbar slot.
+- **Layout planning:** Load `30-pages/apex.layout.md` for page-scoped runs. Build row recipes per layout scope: page slot rows, nested `parentRegion` rows, item rows by `layout.region + layout.slot`, and button rows by `layout.region + layout.slot`. Generated `applications/**` finals are linted with the same deterministic layout rules as drafts. For equal-width rows, emit sequence ordering plus `startNewRow: false` on second-and-later siblings and omit `column` / `columnSpan`. For true shell patterns such as sidebar + main content, evaluate page-template slots first and prefer semantic shells such as `leftColumn` + `body` when they fit the requested layout closely enough. When an asymmetric body-grid row is still required, allow the anchored-sibling pattern: first region may emit `columnSpan` only, later siblings may emit `column`; do not force `column: 1` onto the first region and do not classify that recipe as invalid mixed layout. For master-detail Content Row pages, use the `master-detail-content-row` recipe: narrow parent Content Row first, child report second with `startNewRow: false`, hidden parent context item, and child action buttons in the child report toolbar slot.
 - **DB-first gate (all DB-backed artifacts):**
   - Applies to DB-backed page/report/form/LOV SQL/region SQL generation.
   - Before drafting SQL for real DB objects, require metadata verification evidence for source object, selected columns, and sort (`ORDER BY`) columns where used from either the selected schema dictionary or live DB metadata.

@@ -148,6 +148,7 @@ function printUsage() {
   node tools/apexctl.mjs runtime preflight [--app-path <path>] [--db-connection-name <name>] [--execution-mode <auto|build-root|path>] [--supporting-objects] [--preflight-only] [--apex-root <path>] [--report-path <path>]
   node tools/apexctl.mjs runtime doctor [--app-path <path>] [--db-connection-name <name>] [--execution-mode <auto|build-root|path>] [--supporting-objects] [--apex-root <path>] [--report-path <path>]
   node tools/apexctl.mjs runtime verify-ui --app-path <path> [--runtime-base-url <url>] [--runtime-page-url <url>] [--runtime-provider <auto|chrome-devtools-mcp|http-fallback>] [--page <id>] [--artifact-dir <path>] [--report-path <path>]
+  node tools/apexctl.mjs runtime validate --app-path <absolute_path> --db-connection-name <name> [--apex-root <path>] [--execution-mode <auto|build-root|path>] [--workspaceid <id>] [--artifact-dir <path>] [--vscode-problems-path <path>] [--report-path <path>] [--transcript-path <path>]
   node tools/apexctl.mjs runtime roundtrip --app-path <path> --db-connection-name <name> [--import-intent <validate-only|validate-and-import>] [--execution-mode <auto|build-root|path>] [--target-resolution-mode <update-existing|create-new>] [--create-new-confirmed] [--workspaceid <id>] [--runtime-base-url <url>] [--runtime-page-url <url>] [--runtime-provider <auto|chrome-devtools-mcp|http-fallback>] [--page <id>] [--artifact-dir <path>] [--require-runtime-verification] [--skip-runtime-verification] [--supporting-objects] [--preflight-only] [--import-mode <auto|direct>] [--apex-root <path>] [--report-path <path>] [--transcript-path <path>]
   node tools/apexctl.mjs runtime predeploy --app-path <path> [--fix-vocab]
   node tools/apexctl.mjs apexlang validate --app-path <path> [--fix-vocab]
@@ -403,6 +404,24 @@ async function handleRuntime(packageRoot, runtimeModule, args) {
       await ensureDir(path.dirname(reportPath));
       await fs.writeFile(reportPath, JSON.stringify(result.payload, null, 2) + "\n", "utf8");
     }
+    console.log(JSON.stringify(result.payload, null, 2));
+    return result.code;
+  }
+  if (action === "validate") {
+    const result = await runtimeModule.runRuntimeValidate({
+      appPath: readOption(args, "--app-path", ""),
+      dbConnectionName: readOption(args, "--db-connection-name", readOption(args, "--db-connection", "")),
+      executionMode: readOption(args, "--execution-mode", "auto"),
+      targetResolutionMode: readOption(args, "--target-resolution-mode", "update-existing"),
+      workspaceId: readOption(args, "--workspaceid", ""),
+      supportingObjects: parseFlag(args, "--supporting-objects"),
+      preflightOnly: parseFlag(args, "--preflight-only"),
+      apexRoot: readOption(args, "--apex-root", ""),
+      artifactDir: readOption(args, "--artifact-dir", ""),
+      vscodeProblemsPath: readOption(args, "--vscode-problems-path", ""),
+      reportPath: readOption(args, "--report-path", ""),
+      transcriptPath: readOption(args, "--transcript-path", "")
+    });
     console.log(JSON.stringify(result.payload, null, 2));
     return result.code;
   }
