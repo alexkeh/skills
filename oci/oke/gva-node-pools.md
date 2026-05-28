@@ -6,6 +6,16 @@ Use this skill to plan, create, or review OCI Kubernetes Engine (OKE) managed no
 
 GVA lets a node pool expose multiple secondary VNIC profiles, each with its own subnet, NSGs, display name, and pod IP allocation. Optional Application Resources let pods request one specific secondary VNIC profile through Kubernetes extended resources.
 
+For full operational behavior, load `oci/oke/skills/oke-gva-deployer/SKILL.md` and its supporting files before generating or running commands. That skill preserves the guided GVA workflow, including discovery, menu-driven command generation, validation templates, and approval-gated node-pool creation.
+
+Supporting tools and references:
+
+- `oci/oke/scripts/gva-discover.sh`
+- `oci/oke/scripts/gva-menu.sh`
+- `oci/oke/scripts/gva-cli-resolve.sh`
+- `oci/oke/skills/oke-gva-deployer/references/gva.md`
+- `oci/oke/skills/oke-gva-deployer/validation-report-template.md`
+
 ## When to Use
 
 Use this skill when the task involves:
@@ -81,6 +91,12 @@ resources:
 ```
 
 Use Application Resources when a pod should be pinned to one selected secondary VNIC profile. Do not use this pod-level Application Resource model for pods that need multiple interfaces through Multus.
+
+## Approval-Gated Creation
+
+Creating an OKE node pool is allowed in this skill because it is part of the GVA workflow. The agent must still ask for explicit approval before running a mutating command.
+
+`oci/oke/scripts/gva-menu.sh` supports this approval model by generating the command first, offering a print-only path, and requiring the user to type `CREATE` before it runs `oci ce node-pool create`.
 
 ## CLI Planning Pattern
 

@@ -6,6 +6,16 @@ Use this skill to design an OCI Kubernetes Engine (OKE) cluster and translate th
 
 Start from official OKE requirements, then map the chosen architecture to Terraform variables, Resource Manager schema inputs, and validation checks.
 
+For full operational behavior, load `oci/oke/skills/oke-cluster-generator/SKILL.md` and its supporting files before generating artifacts. That skill preserves the OKE generator workflow, including live preflight discovery, CIDR validation, Terraform output templates, and OCI Resource Manager schema guidance.
+
+Supporting tools and references:
+
+- `oci/oke/scripts/preflight-check.sh`
+- `oci/oke/scripts/validate-cidr.sh`
+- `oci/oke/skills/oke-cluster-generator/reference.md`
+- `oci/oke/skills/oke-cluster-generator/output-templates/terraform.md`
+- `oci/oke/skills/oke-cluster-generator/output-templates/schema.md`
+
 ## Design Sequence
 
 1. Confirm tenancy context:

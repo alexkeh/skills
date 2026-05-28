@@ -6,6 +6,24 @@ Use this skill to troubleshoot OCI Kubernetes Engine (OKE) workload and cluster 
 
 Use this for symptoms such as Pending pods, unhealthy add-ons, CNI failures, DNS issues, LoadBalancer or Ingress problems, OCIR image pulls, Workload Identity errors, private endpoint access failures, storage issues, and node-pool scaling failures.
 
+For full operational behavior, load `oci/oke/skills/oke-troubleshooter/SKILL.md` and its supporting files before collecting evidence. That skill preserves the OKE troubleshooting workflow, including symptom triage, evidence collectors, Kubernetes-to-OCI object correlation, optional helper agents, and final report structure.
+
+Supporting tools and references:
+
+- `oci/oke/scripts/oke-discover.sh`
+- `oci/oke/scripts/oke-object-correlator.sh`
+- `oci/oke/scripts/oke-addon-health.sh`
+- `oci/oke/scripts/oke-pod-network-check.sh`
+- `oci/oke/scripts/oke-autoscaler-check.sh`
+- `oci/oke/scripts/oke-dns-check.sh`
+- `oci/oke/scripts/oke-ingress-check.sh`
+- `oci/oke/scripts/oke-private-endpoint-check.sh`
+- `oci/oke/scripts/oke-ocir-image-pull-check.sh`
+- `oci/oke/scripts/oke-workload-identity-check.sh`
+- `oci/oke/scripts/oke-incident-timeline.sh`
+- `oci/oke/skills/oke-troubleshooter/evidence-collectors.md`
+- `oci/oke/skills/oke-troubleshooter/symptom-triage.md`
+
 ## Safety Rules
 
 - Run read-only commands first.
@@ -44,9 +62,9 @@ If the context does not match the target cluster, stop and ask the user to switc
 | Pods Pending or Unschedulable | Pod events, node capacity, taints/tolerations, node selectors, autoscaler logs, OCI limits |
 | ImagePullBackOff or ErrImagePull | Pod events, image path, imagePullSecrets, service account, OCIR repository and IAM policy |
 | CrashLoopBackOff or OOMKilled | Pod logs, previous logs, resource requests/limits, node pressure |
-| CNI or pod sandbox failures | Pod events, kube-system CNI pods, OCI VCN-native CNI logs, subnet IP capacity, Multus NADs |
-| Service has no LoadBalancer IP | Service events, OCI load balancer state, subnet and NSG rules, quota |
-| Ingress failure | Ingress events, OCI Native Ingress controller logs, listener/certificate/backend health |
+| CNI or pod sandbox failures | Pod events, kube-system CNI pods, OCI VCN-native CNI logs, subnet IP capacity, Multus NADs, NSGs, security lists, and route tables |
+| Service has no LoadBalancer IP | Service events, OCI load balancer state, subnets, NSGs, security lists, route tables, gateways, and quota |
+| Ingress failure | Ingress events, OCI Native Ingress controller logs, listener/certificate/backend health, subnets, NSGs, security lists, and route tables |
 | DNS timeout or NXDOMAIN | CoreDNS health, Service and EndpointSlice state, pod lookup tests |
 | PVC Pending or attach failure | PVC/PV events, CSI controller logs, volume AD, node AD, block volume limits |
 | Workload cannot call OCI API | ServiceAccount, Workload Identity policy, SDK provider, namespace and cluster identity |
@@ -104,11 +122,11 @@ When enough selectors are known, map Kubernetes objects to OCI resources:
 
 | Kubernetes object | OCI resource to check |
 |-------------------|-----------------------|
-| Node | Compute instance, primary VNIC, subnet, NSGs, node pool |
-| Service type `LoadBalancer` | OCI Load Balancer, backend set, listeners, subnets, NSGs |
-| Ingress | OCI Load Balancer resources managed by the ingress controller |
+| Node | Compute instance, primary VNIC, subnet, NSGs, security lists, route table, gateways or peering path, node pool |
+| Service type `LoadBalancer` | OCI Load Balancer, backend set, listeners, subnets, NSGs, security lists, route tables, gateways or peering path |
+| Ingress | OCI Load Balancer resources managed by the ingress controller, subnets, NSGs, security lists, route tables, gateways or peering path |
 | PVC/PV | Block Volume or File Storage resource and attachment state |
-| Pod with VCN-native networking | Pod subnet IP capacity and OCI CNI allocation path |
+| Pod with VCN-native networking | Pod subnet IP capacity, OCI CNI allocation path, NSGs, security lists, route table, gateways or peering path |
 | Pod using Workload Identity | Cluster, namespace, service account, IAM policy conditions |
 
 Use this correlation to avoid treating every symptom as only a Kubernetes problem.
@@ -152,6 +170,7 @@ Present findings in this order:
 - Rotating image pull secrets before confirming the image path, region key, OCIR namespace, and repository permissions.
 - Mixing Workload Identity with dynamic group assumptions. OKE Workload Identity uses workload identity policy conditions, not dynamic groups.
 - Applying fixes before preserving the events and logs needed to explain the incident.
+- Checking NSGs but forgetting subnet security lists, route tables, gateways, and peering paths.
 
 ## Sources
 

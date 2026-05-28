@@ -75,7 +75,13 @@ npx skills add oracle/skills/graal
         ├── cluster-design.md
         ├── troubleshooting.md
         ├── gva-node-pools.md
-        └── multus-multihome.md
+        ├── multus-multihome.md
+        ├── skills/
+        ├── scripts/
+        ├── agents/
+        ├── shared/
+        ├── examples/
+        └── tests/
 ```
 
 Each domain has its own `SKILL.md` and any supporting index files it needs.

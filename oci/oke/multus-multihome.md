@@ -6,6 +6,16 @@ Use this skill to plan, deploy, or troubleshoot Multus NetworkAttachmentDefiniti
 
 Use this when a pod needs more than one network interface, such as `eth0` plus `net1`, or when validating that a Multus attachment uses the intended OKE secondary VNIC path.
 
+For full operational behavior, load `oci/oke/skills/oke-multihome-deployer/SKILL.md` and its supporting files before generating manifests or validating pods. That skill preserves the Multus multihome workflow, including OKE/GVA discovery, manifest generation, validation reports, and DPDK/SR-IOV notes.
+
+Supporting tools and references:
+
+- `oci/oke/skills/oke-multihome-deployer/scripts/discover-oke-multihome.py`
+- `oci/oke/skills/oke-multihome-deployer/scripts/generate-multihome-manifest.py`
+- `oci/oke/skills/oke-multihome-deployer/references/oke-multihome-notes.md`
+- `oci/oke/skills/oke-multihome-deployer/references/oke-dpdk-mlx5-notes.md`
+- `oci/oke/skills/oke-multihome-deployer/validation-report-template.md`
+
 ## When to Use
 
 Use this skill for:
