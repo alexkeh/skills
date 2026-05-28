@@ -24,7 +24,7 @@ npx skills add oracle/skills/graal
 ## Domains
 
 - `db/` is the active Oracle Database domain and includes database, ORDS, SQLcl, framework, container, and agent workflow skills.
-- `oci/` is the root for future Oracle Cloud Infrastructure skills.
+- `oci/` contains Oracle Cloud Infrastructure skills, starting with OCI Kubernetes Engine cluster design, troubleshooting, Generic VNIC Attachment, and Multus pod networking.
 - `fusion/` is the root for future Oracle Fusion skills.
 - `apex/` is the root for future Oracle APEX skills.
 - `graal/` contains GraalVM skills, starting with Native Image.
@@ -70,7 +70,12 @@ npx skills add oracle/skills/graal
 │       ├── reachability-metadata.md
 │       └── troubleshooting.md
 └── oci/
-    └── SKILL.md
+    ├── SKILL.md
+    └── oke/
+        ├── cluster-design.md
+        ├── troubleshooting.md
+        ├── gva-node-pools.md
+        └── multus-multihome.md
 ```
 
 Each domain has its own `SKILL.md` and any supporting index files it needs.
