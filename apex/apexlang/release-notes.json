@@ -1,9 +1,9 @@
 {
-  "title": "APEXlang Skills Changelog",
+  "title": "APEXlang Skills Release Notes",
   "description": "Download the latest release version",
   "mastheadUtility": "Oracle APEX",
   "breadcrumbRoot": "APEXlang Skills",
-  "breadcrumbCurrent": "Changelog",
+  "breadcrumbCurrent": "Release Notes",
   "downloadUrl": "https://github.com/oracle/skills/",
   "downloadLabel": "Download",
   "releases": [
