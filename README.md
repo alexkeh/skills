@@ -47,7 +47,7 @@ Browse and toggle installed plugins anytime with `/plugin`. Enabled plugins are 
 ## Domains
 
 - `db/` is the active Oracle Database domain and includes database, ORDS, SQLcl, framework, container, and agent workflow skills.
-- `oci/` is the root for future Oracle Cloud Infrastructure skills.
+- `oci/` contains Oracle Cloud Infrastructure skills, starting with OCI Kubernetes Engine cluster design, troubleshooting, Generic VNIC Attachment, and Multus pod networking.
 - `fusion/` is the root for future Oracle Fusion skills.
 - `apex/` is the root for future Oracle APEX skills.
 - `graal/` contains GraalVM skills, starting with Native Image.
@@ -93,7 +93,18 @@ Browse and toggle installed plugins anytime with `/plugin`. Enabled plugins are 
 │       ├── reachability-metadata.md
 │       └── troubleshooting.md
 └── oci/
-    └── SKILL.md
+    ├── SKILL.md
+    └── oke/
+        ├── cluster-design.md
+        ├── troubleshooting.md
+        ├── gva-node-pools.md
+        ├── multus-multihome.md
+        ├── skills/
+        ├── scripts/
+        ├── agents/
+        ├── shared/
+        ├── examples/
+        └── tests/
 ```
 
 Each domain has its own `SKILL.md` and any supporting index files it needs.
@@ -113,3 +124,8 @@ For stub domains, keep `SKILL.md` minimal and point users back to this `README.m
 - Skills that include version-specific behavior must include a section named `## Oracle Version Notes (19c vs 26ai)`.
 - Use Oracle Database 19c as the baseline compatibility target unless stated otherwise.
 - Explicitly call out features that require newer releases and provide 19c-compatible alternatives where practical.
+
+## Sources
+
+- https://docs.oracle.com/en-us/iaas/Content/ContEng/home.htm
+- https://www.graalvm.org/latest/reference-manual/native-image/
