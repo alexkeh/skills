@@ -232,6 +232,9 @@ const DEFAULT_CONFIG = {
   }
 };
 
+/**
+ * Normalize DB connection and workspace fields into the shared context shape.
+ */
 function normalizeDbContext(dbContext = {}) {
   const workspace = dbContext.workspace && typeof dbContext.workspace === "object" ? dbContext.workspace : {};
   const workspaceName = String(workspace.name ?? dbContext.workspaceName ?? "").trim();
@@ -247,6 +250,9 @@ function normalizeDbContext(dbContext = {}) {
   };
 }
 
+/**
+ * Return whether a caller supplied any DB or workspace context.
+ */
 function hasDbContextInput(dbContext = {}) {
   const normalized = normalizeDbContext(dbContext);
   return Boolean(
@@ -257,10 +263,16 @@ function hasDbContextInput(dbContext = {}) {
   );
 }
 
+/**
+ * Render a path relative to the probed workspace root.
+ */
 function normalizePath(root, target) {
   return path.relative(root, target) || ".";
 }
 
+/**
+ * Return whether a path can be accessed.
+ */
 async function exists(target) {
   try {
     await fs.access(target);
@@ -270,6 +282,9 @@ async function exists(target) {
   }
 }
 
+/**
+ * Read JSON when present; return null for missing or malformed files.
+ */
 async function readJsonIfPresent(target) {
   if (!(await exists(target))) {
     return null;
@@ -281,10 +296,16 @@ async function readJsonIfPresent(target) {
   }
 }
 
+/**
+ * Remove empty values and preserve the first occurrence of each string.
+ */
 function uniqueStrings(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+/**
+ * Convert a title-like value into a lower-kebab path segment.
+ */
 function slugify(value) {
   return String(value ?? "")
     .toLowerCase()
@@ -342,6 +363,9 @@ function normalizeObjectName(value) {
     .trim();
 }
 
+/**
+ * Build a normalized object metadata record.
+ */
 function objectRecord(name, kind = "object") {
   return {
     name: normalizeObjectName(name),
@@ -349,6 +373,9 @@ function objectRecord(name, kind = "object") {
   };
 }
 
+/**
+ * Build a normalized column metadata record.
+ */
 function columnRecord(objectName, columnName, dataType = "") {
   return {
     object_name: normalizeObjectName(objectName),
@@ -357,6 +384,9 @@ function columnRecord(objectName, columnName, dataType = "") {
   };
 }
 
+/**
+ * Build a normalized API endpoint metadata record.
+ */
 function apiRecord(method, route, sourceName = "") {
   return {
     method: String(method ?? "").toUpperCase(),
@@ -365,6 +395,9 @@ function apiRecord(method, route, sourceName = "") {
   };
 }
 
+/**
+ * Add object and column entries to a metadata record.
+ */
 function pushColumns(record, objectName, columns, fallbackKind = "table") {
   const cleanObjectName = normalizeObjectName(objectName);
   if (!cleanObjectName) {
@@ -705,6 +738,9 @@ function classifyStructuredFile(filePath, contents) {
   return null;
 }
 
+/**
+ * Return whether a file extension is included in the bounded-scan allowlist.
+ */
 function isAllowedExtension(filePath, allowedExtensions) {
   return allowedExtensions.includes(path.extname(filePath).toLowerCase());
 }
@@ -742,6 +778,9 @@ async function walkBounded(root, config) {
   return discovered;
 }
 
+/**
+ * Return true when a directory has any of the expected child markers.
+ */
 async function hasAnyExistingChild(directoryPath, childNames) {
   for (const childName of childNames) {
     if (await exists(path.join(directoryPath, childName))) {
@@ -751,6 +790,9 @@ async function hasAnyExistingChild(directoryPath, childNames) {
   return false;
 }
 
+/**
+ * Detect whether a directory has enough markers to be treated as an APEX app root.
+ */
 async function isApexAppRoot(directoryPath, appDiscovery) {
   for (const markerFile of appDiscovery.marker_files ?? []) {
     if (await exists(path.join(directoryPath, markerFile))) {
@@ -765,6 +807,9 @@ async function isApexAppRoot(directoryPath, appDiscovery) {
   return false;
 }
 
+/**
+ * Build the normalized candidate record used in app-context resolution.
+ */
 function appCandidate(root, directoryPath, source) {
   const relativePath = normalizePath(root, directoryPath);
   return {
@@ -774,6 +819,9 @@ function appCandidate(root, directoryPath, source) {
   };
 }
 
+/**
+ * Return requirement hints with a specific prefix, stripped to their useful value.
+ */
 function collectRequirementHints(records, prefix) {
   return records
     .filter((record) => record.source_class === "requirements")
@@ -783,6 +831,9 @@ function collectRequirementHints(records, prefix) {
     .filter(Boolean);
 }
 
+/**
+ * Suggest a new app path from requirements when authoritative offline context exists.
+ */
 function inferSuggestedAppPath({ discovered, standardRootName }) {
   const aliases = collectRequirementHints(discovered, "app_alias:");
   if (aliases.length > 0) {
@@ -808,6 +859,9 @@ function inferSuggestedAppPath({ discovered, standardRootName }) {
   return "";
 }
 
+/**
+ * Exclude template scaffold directories from app-root discovery.
+ */
 function isTemplateScaffoldCandidate(root, directoryPath) {
   const relativePath = normalizePath(root, directoryPath).replaceAll(path.sep, "/");
   return (
@@ -818,6 +872,9 @@ function isTemplateScaffoldCandidate(root, directoryPath) {
   );
 }
 
+/**
+ * Exclude generated output and export backups from app-root discovery.
+ */
 function isOutputOrBackupCandidate(root, directoryPath) {
   const relativePath = normalizePath(root, directoryPath).replaceAll(path.sep, "/");
   return relativePath.split("/").some((segment) => segment === "artifacts" || segment === "apex-exports");
@@ -1109,7 +1166,7 @@ const WORKSPACE_SCOPE_LOOKUP_BEGIN = "__APEX_WORKSPACE_SCOPE_LOOKUP_BEGIN__";
 const WORKSPACE_SCOPE_LOOKUP_END = "__APEX_WORKSPACE_SCOPE_LOOKUP_END__";
 const WORKSPACE_APP_LIST_BEGIN = "__APEX_WORKSPACE_APP_LIST_BEGIN__";
 const WORKSPACE_APP_LIST_END = "__APEX_WORKSPACE_APP_LIST_END__";
-const WORKSPACE_RESOLUTION_STATUS = "Identifying workspace ID for DB connection, please bare with me...";
+const WORKSPACE_RESOLUTION_STATUS = "Resolving the workspace ID for this DB connection...";
 const DEBUG_MAX_RETRY_COUNT = 3;
 const LOCAL_VALIDATION_REQUESTED_ENTRYPOINT = "npm_run_apexlang_validate";
 const LOCAL_VALIDATION_FALLBACK_ENTRYPOINT = "direct_apexctl_validate";
@@ -1460,6 +1517,9 @@ function buildDelimitedSqlProbeScript(probeName, query) {
   ].join("\n");
 }
 
+/**
+ * Ensure a SQL statement ends with exactly one semicolon.
+ */
 export function terminateSqlStatement(query = "") {
   return String(query).trim().replace(/;?\s*$/, ";");
 }
@@ -2205,6 +2265,9 @@ async function verifyRuntimeUiWithHttpFallback({
   };
 }
 
+/**
+ * Verify changed or requested APEX pages through the selected runtime UI provider.
+ */
 export async function verifyRuntimeUi(options = {}) {
   const deps = {
     runCommand,
@@ -2296,6 +2359,9 @@ export function buildWorkspaceLookupScript(query) {
   ].join("\n");
 }
 
+/**
+ * Wrap an application identity lookup query with parseable output sentinels.
+ */
 export function buildAppIdentityLookupScript(query) {
   return [
     "set feedback off",
@@ -2312,6 +2378,9 @@ export function buildAppIdentityLookupScript(query) {
   ].join("\n");
 }
 
+/**
+ * Wrap a workspace-scope lookup query with parseable output sentinels.
+ */
 export function buildWorkspaceScopeLookupScript(query) {
   return [
     "set feedback off",
@@ -2328,6 +2397,9 @@ export function buildWorkspaceScopeLookupScript(query) {
   ].join("\n");
 }
 
+/**
+ * Wrap a workspace application-list query with parseable output sentinels.
+ */
 export function buildWorkspaceAppListScript(query) {
   return [
     "set feedback off",
@@ -2363,6 +2435,9 @@ function runInteractiveCommand(command, args, options = {}) {
   };
 }
 
+/**
+ * Return true when SQLcl output indicates a failed, warning, or blocked runtime session.
+ */
 export function hasRuntimeFailure(result) {
   const output = cleanOutput(result);
   return result.code !== 0 || FAILURE_PATTERN.test(output) || WARNING_PATTERN.test(output) || PASSWORD_PROMPT_PATTERN.test(output);
@@ -3619,6 +3694,10 @@ function normalizeProblemSeverity(value = "") {
 
 function inferCompilerType(message = "") {
   const text = String(message || "");
+  const missingParameterMatch = text.match(/\bMissing required parameter\s*\((\d+)\)/i);
+  if (missingParameterMatch) {
+    return `MISSING_REQUIRED_PARAMETER_${missingParameterMatch[1]}`;
+  }
   const match = text.match(/\b(ORA-\d+|SP2-\d+|PLS-\d+|DSL_[A-Z0-9_]+|APEXLANG_[A-Z0-9_]+|COMPILER_TRUTH_[A-Z0-9_]+|INVALID_[A-Z0-9_]+|MISSING_[A-Z0-9_]+)\b/i);
   return match ? match[1] : "";
 }
@@ -3650,19 +3729,47 @@ function sortProblems(problems = []) {
   return [...problems].sort((left, right) => problemSortKey(left).localeCompare(problemSortKey(right)));
 }
 
+function splitTranscriptSections(transcript = "") {
+  const sections = [];
+  let current = { heading: "", lines: [] };
+  for (const line of String(transcript || "").split(/\r?\n/)) {
+    const headingMatch = line.match(/^##\s+(.+?)\s*$/);
+    if (headingMatch) {
+      if (current.heading || current.lines.length > 0) {
+        sections.push(current);
+      }
+      current = { heading: headingMatch[1], lines: [] };
+      continue;
+    }
+    current.lines.push(line);
+  }
+  if (current.heading || current.lines.length > 0) {
+    sections.push(current);
+  }
+  return sections;
+}
+
+const LIVE_TRANSCRIPT_SECTION_PATTERN =
+  /(roundtrip|live_validate|live_import|direct_import|apex_validate|apex_sql_build_root|sql_(?:name_)?alias|sql_nolog)/i;
+
+function liveTranscriptSections(transcript = "") {
+  return splitTranscriptSections(transcript).filter((section) => LIVE_TRANSCRIPT_SECTION_PATTERN.test(section.heading));
+}
+
 function parseLiveProblemLines(lines = []) {
   const problems = [];
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index].trim();
     if (
       !line ||
+      /^APEXLang (?:Compile|Import) (?:Warnings|Errors):\s*$/i.test(line) ||
       /\b(?:APEXLANG_DSL_LINT_OK|VALIDATION_LINT_OK|APEXLANG_LOCAL_CHECK_OK|APEXLANG_LIVE_CHECK_OK)\b/.test(line) ||
       /\b(?:APEXLANG_LOCAL_CHECK_FAILED|APEXCTL_APEXLANG_VALIDATE_FAILED)\b/.test(line)
     ) {
       continue;
     }
     const hasProblemSignal =
-      /\b(ORA-\d+|SP2-\d+|PLS-\d+|APEXLANG_(?:COMPILE|IMPORT|LIVE)_[A-Z0-9_]+|DSL_[A-Z0-9_]+|INVALID_[A-Z0-9_]+|MISSING_[A-Z0-9_]+|Error!|\berror\b|\bwarning\b)\b/i.test(line);
+      /\b(ORA-\d+|SP2-\d+|PLS-\d+|APEXLANG_(?:COMPILE|IMPORT|LIVE)_[A-Z0-9_]+|DSL_[A-Z0-9_]+|INVALID_[A-Z0-9_]+|MISSING_[A-Z0-9_]+|Error!|\berror\b|\bwarning\b|Missing required parameter|Required parameter|Syntax error|Unexpected (?:token|symbol|character)|Invalid)\b/i.test(line);
     if (!hasProblemSignal) {
       continue;
     }
@@ -3680,35 +3787,41 @@ function parseLiveProblemLines(lines = []) {
 }
 
 function parseLiveTranscriptProblems(transcript = "") {
-  const sections = [];
-  let current = { heading: "", lines: [] };
-  for (const line of String(transcript || "").split(/\r?\n/)) {
-    const headingMatch = line.match(/^##\s+(.+?)\s*$/);
-    if (headingMatch) {
-      if (current.heading || current.lines.length > 0) {
-        sections.push(current);
-      }
-      current = { heading: headingMatch[1], lines: [] };
-      continue;
-    }
-    current.lines.push(line);
-  }
-  if (current.heading || current.lines.length > 0) {
-    sections.push(current);
-  }
+  return liveTranscriptSections(transcript).flatMap((section) => parseLiveProblemLines(section.lines));
+}
 
-  const liveSections = sections.filter((section) =>
-    /(roundtrip|live_validate|live_import|direct_import|apex_validate|sql_(?:name_)?alias|sql_nolog)/i.test(section.heading)
-  );
-  return liveSections.flatMap((section) => parseLiveProblemLines(section.lines));
+function liveTranscriptExcerpt(transcript = "") {
+  const lines = liveTranscriptSections(transcript)
+    .flatMap((section) => section.lines)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) =>
+      !/\b(?:APEXLANG_DSL_LINT_OK|VALIDATION_LINT_OK|APEXLANG_LOCAL_CHECK_OK|APEXLANG_LIVE_CHECK_OK)\b/.test(line)
+    );
+  return lines.slice(-12).join(" | ").slice(0, 1200).trim();
+}
+
+function buildUnparsedLiveFailureProblem(transcript = "") {
+  const excerpt = liveTranscriptExcerpt(transcript);
+  if (!excerpt || /No live validation transcript was produced before validation blocked\./i.test(excerpt)) {
+    return null;
+  }
+  return normalizeProblem({
+    source: "apex_validate",
+    severity: "error",
+    code: "APEXLANG_LIVE_UNPARSED_FAILURE",
+    message: `Live validation failed but no structured Problems entries were parsed. Transcript excerpt: ${excerpt}`
+  }, "apex_validate");
 }
 
 function buildProblemsPayload({ liveResult = {}, compilerTruth = {}, vscodeProblems = {}, report = {} } = {}) {
   const liveStatus = String(liveResult.status || liveResult.live_check_status || report.live_check_status || "blocked");
   const appPath = liveResult.appPath || report.app_path || "";
-  const problems = liveStatus === "pass"
-    ? []
-    : sortProblems(parseLiveTranscriptProblems(liveResult.transcript || ""));
+  const parsedProblems = liveStatus === "pass" ? [] : parseLiveTranscriptProblems(liveResult.transcript || "");
+  const fallbackProblem = liveStatus === "pass" || parsedProblems.length > 0
+    ? null
+    : buildUnparsedLiveFailureProblem(liveResult.transcript || "");
+  const problems = sortProblems(fallbackProblem ? [...parsedProblems, fallbackProblem] : parsedProblems);
   const unresolvedProblems = problems.filter((problem) => ["error", "warning"].includes(problem.severity));
   return {
     generated_at: new Date().toISOString(),
@@ -3898,6 +4011,9 @@ async function writeValidationArtifacts({ report, problemsPayload, componentCont
   await writeJson(paths.reportPath, report);
 }
 
+/**
+ * Run the live validate-only gate and write validation reports for editor and agent feedback.
+ */
 export async function runRuntimeValidate(options = {}) {
   const deps = {
     runRuntimeRoundtrip,
@@ -4162,6 +4278,9 @@ async function resolveCanonicalApplicationIdentityForRuntime(options = {}) {
   };
 }
 
+/**
+ * Build the ordered PATH SQLcl connection attempts for a script payload.
+ */
 export function buildPathSessionAttempts({ dbConnectionName, input, labelPrefix = "sql" }) {
   return [
     {

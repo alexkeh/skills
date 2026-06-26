@@ -134,6 +134,11 @@
       "deterministicFix": "Remove heading from hidden Classic Report columns while keeping comments/source metadata as needed.",
       "owningGuidance": ["references/policies/memory-bank/30-pages/apex.classic-report.md"]
     },
+    "INTERACTIVE_REPORT_LINK_COLUMN_TYPE_FORBIDDEN_001": {
+      "cause": "Interactive Report column used Classic Report-only type: link.",
+      "deterministicFix": "Replace with type: plainText and keep/add column-level link {}.",
+      "owningGuidance": ["references/policies/memory-bank/30-pages/apex.interactive-report.md", "templates/region-components/interactive-report/interactive-report._columns._common.md"]
+    },
     "CONTENT_ROW_ACTION_MENU_REQUIRED_001": {
       "cause": "Content Row actions are missing the expected action-menu structure.",
       "deterministicFix": "Add the documented Content Row action/menu child structure from the selected template, preserving row identity and target mappings.",
@@ -219,10 +224,25 @@
       "deterministicFix": "Replace the value with a conservative Font APEX fa-* class such as fa-table, fa-users, fa-map-marker, fa-package, fa-image, fa-filter, fa-edit, or fa-plus.",
       "owningGuidance": ["references/policies/memory-bank/40-components/apex.region-media.md", "references/policies/memory-bank/40-components/apex.buttons.md"]
     },
-    "FACETED_SEARCH_CURRENT_FACETS_SELECTOR_INVALID_001": {
-      "cause": "Current facets selector or target region wiring is invalid.",
-      "deterministicFix": "Point the current-facets component at the owning faceted-search region using the documented selector/static ID pattern.",
-      "owningGuidance": ["templates/region-components/faceted-search/faceted-search._common.md"]
+    "FACETED_SEARCH_DEFAULT_SETTINGS_REQUIRED_001": {
+      "cause": "A faceted-search region is missing the standard default settings block or has a non-default value for a required default setting.",
+      "deterministicFix": "Normalize the faceted-search settings block to compactNosThreshold: 10000, showCurrentFacets: true, and showTotalRowCount: true unless the user explicitly requested selector mode.",
+      "owningGuidance": ["references/policies/memory-bank/30-pages/apex.faceted-search.md", "templates/region-components/faceted-search/faceted-search._common.md"]
+    },
+    "FACETED_SEARCH_SELECTOR_MODE_REQUIRED_001": {
+      "cause": "A faceted-search region defines currentFacetsSelector without enabling selector mode.",
+      "deterministicFix": "Either remove currentFacetsSelector and use showCurrentFacets: true, or switch to explicit selector mode by pairing showCurrentFacets: selector with currentFacetsSelector.",
+      "owningGuidance": ["references/policies/memory-bank/30-pages/apex.faceted-search.md", "templates/region-components/faceted-search/faceted-search._common.md"]
+    },
+    "FACETED_SEARCH_CURRENT_FACETS_SELECTOR_REQUIRED_001": {
+      "cause": "A faceted-search region enables selector mode without a concrete current-facets selector target.",
+      "deterministicFix": "Add currentFacetsSelector with the concrete external current-facets target selector, or revert to the default showCurrentFacets: true setting.",
+      "owningGuidance": ["references/policies/memory-bank/30-pages/apex.faceted-search.md", "templates/region-components/faceted-search/faceted-search._common.md"]
+    },
+    "FACETED_SEARCH_DISPLAY_CHART_TOP_N_INVALID_001": {
+      "cause": "A faceted-search region uses a missing, zero, negative, or non-integer top-N chart value.",
+      "deterministicFix": "Remove displayChartForTopNValues unless the user explicitly requested facet charts; for explicit chart requests, set displayChartForTopNValues: 10 or another positive integer.",
+      "owningGuidance": ["references/policies/memory-bank/30-pages/apex.faceted-search.md", "templates/region-components/faceted-search/faceted-search._common.md"]
     },
     "FORM_EDIT_ALLOWED_OPERATIONS_LEGACY_001": {
       "cause": "Form edit behavior uses a legacy allowedOperations shape.",
@@ -390,8 +410,8 @@
       "owningGuidance": ["references/policies/memory-bank/30-pages/apex.report-column-rendering.md", "references/policies/memory-bank/20-data/apex.sql.md"]
     },
     "SAVED_REPORT_VISIBILITY_LEGACY_001": {
-      "cause": "Interactive Grid/Report saved report visibility uses a legacy value.",
-      "deterministicFix": "Replace legacy saved-report visibility values with the current compiler-supported visibility contract.",
+      "cause": "Interactive Grid/Report saved report visibility uses an unsupported value.",
+      "deterministicFix": "Replace saved-report visibility with the compiler-backed values for the parent report variant. Interactive Grid uses primary, alternative, public, or private and defaults to primary; Interactive Report uses primaryDefault, alternativeDefault, public, or private.",
       "owningGuidance": ["references/policies/memory-bank/30-pages/apex.interactive-grid-page.md", "references/policies/memory-bank/30-pages/apex.interactive-report.md"]
     },
     "SECURITY_BASELINE_REQUIRED_001": {

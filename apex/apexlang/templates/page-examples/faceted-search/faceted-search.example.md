@@ -213,9 +213,8 @@ page 27 (
     }
     settings {
       compactNosThreshold: 10000
-      showCurrentFacets: selector
+      showCurrentFacets: true
       showTotalRowCount: true
-      displayChartForTopNValues: 10
     }
     facet FS_SEARCH_TEXT (
       type: search

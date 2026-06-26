@@ -172,6 +172,11 @@ CLASSIC_REPORT_CONTEXTUAL_INFO_APPEARANCE_OPTIONS = [
     "t-Region--hideHeader js-addHiddenHeadingRoleDesc",
     "t-Region--noUI",
 ]
+LIVE_EXTERNAL_IDENTIFIER_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*$")
+SAVED_REPORT_VISIBILITY_FALLBACKS = {
+    "interactiveGrid": ("primary", "alternative", "public", "private"),
+    "interactiveReport": ("primaryDefault", "alternativeDefault", "public", "private"),
+}
 LintRunner = Callable[["LintContext"], list[str]]
 
 
@@ -308,6 +313,44 @@ def nesting_depth(text: str, idx: int) -> tuple[int, int]:
             brace_depth = max(0, brace_depth - 1)
 
     return paren_depth, brace_depth
+
+
+def unmatched_closing_brace_offsets(text: str) -> list[int]:
+    """Return offsets for closing braces that do not match an opened brace."""
+    offsets: list[int] = []
+    brace_depth = 0
+    in_string = False
+    in_fence = False
+    offset = 0
+
+    for line in text.splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            offset += len(line)
+            continue
+        if in_fence:
+            offset += len(line)
+            continue
+
+        for column, ch in enumerate(line):
+            absolute_offset = offset + column
+            if ch == '"' and (absolute_offset == 0 or text[absolute_offset - 1] != "\\"):
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == "{":
+                brace_depth += 1
+            elif ch == "}":
+                if brace_depth == 0:
+                    offsets.append(absolute_offset)
+                else:
+                    brace_depth -= 1
+
+        offset += len(line)
+
+    return offsets
 
 
 def find_immediate_component_blocks(block: str, keyword: str) -> list[tuple[int, str, str]]:
@@ -604,6 +647,11 @@ def target_page_from_link_block(link_block: str) -> int | None:
     return parse_int(clean_scalar_value(target_page_meta[0]))
 
 
+def component_identifier_is_live_external(identifier: str) -> bool:
+    """Return whether a child component identifier is accepted by the live compiler."""
+    return bool(LIVE_EXTERNAL_IDENTIFIER_PATTERN.fullmatch(identifier.strip()))
+
+
 def target_page_from_button_behavior(button_block: str) -> int | None:
     """Return a literal page target from a redirectThisApp button behavior block."""
     behavior_meta = extract_top_level_blocks(button_block).get("behavior")
@@ -730,6 +778,14 @@ def page_dialog_close_refresh_regions(page_block: str) -> set[str]:
     return regions
 
 
+def page_has_modal_launcher(page_block: str, modal_pages: set[int]) -> bool:
+    """Return whether the page has any recognized launcher to a known modal dialog page."""
+    for target_page in modal_pages:
+        if page_has_link_to_target(page_block, target_page):
+            return True
+    return False
+
+
 def page_modal_report_refresh_requirements(page_block: str, modal_pages: set[int]) -> list[tuple[str, str, str]]:
     """Return report regions that link to modal pages and therefore require close-refresh DAs."""
     requirements: list[tuple[str, str, str]] = []
@@ -803,13 +859,14 @@ def lint_modal_report_refresh_contract(app_root: Path) -> list[str]:
                 if (extract_item_type(region_block) or "") in MODAL_REPORT_REFRESH_REGION_TYPES
             }
             launch_regions = {region_name for region_name, _region_type, _source_label in refresh_requirements}
+            has_page_modal_launcher = page_has_modal_launcher(page_block, modal_pages)
             for region_name in sorted(page_dialog_close_refresh_regions(page_block) & report_regions):
-                if region_name in launch_regions:
+                if region_name in launch_regions or has_page_modal_launcher:
                     continue
                 issues.append(
                     f"{display_path(page_path)}:{line_no(text, page_start)}: "
                     f"MODAL_REPORT_LAUNCH_REQUIRED_001 page '{page_name}' refreshes report @{region_name} "
-                    "after dialog close but has no declarative report link or report-scoped button to a modal page"
+                    "after dialog close but has no declarative report link or page/report button to a modal page"
                 )
     return issues
 
@@ -2464,6 +2521,7 @@ def lint_dashboard_layout_contracts(path: Path, text: str) -> list[str]:
         metric_run: list[dict[str, object]] = []
 
         def flush_metric_run() -> None:
+            """Report a run of sibling metric regions that should be normalized."""
             if len(metric_run) < 2:
                 return
             first_metric = metric_run[0]
@@ -2686,6 +2744,8 @@ BUTTON_TEMPLATE_OPTION_ALIAS_MAP = {
     "tiny": "t-Button--tiny",
 }
 
+BUTTON_ICON_POSITION_TEMPLATE_OPTIONS = {"t-Button--iconLeft", "t-Button--iconRight"}
+
 CALENDAR_LEGACY_SETTING_ALIASES = {
     "displayCol": "displayColumn",
     "startDateCol": "startDateColumn",
@@ -2790,6 +2850,14 @@ def extract_template_option_entries(block_text: str) -> list[tuple[str, int]]:
     return entries
 
 
+def extract_clean_property_value(block_text: str, prop_name: str) -> tuple[str, int] | None:
+    """Extract a cleaned property value from a block."""
+    for found_name, found_value, found_offset in extract_property_values(block_text):
+        if found_name == prop_name:
+            return clean_scalar_value(found_value), found_offset
+    return None
+
+
 def lint_button_template_option_values(
     *,
     issues: list[str],
@@ -2840,6 +2908,70 @@ def lint_button_template_option_values(
         )
 
 
+def lint_button_icon_position_contract(
+    *,
+    issues: list[str],
+    path: Path,
+    text: str,
+    component_start: int,
+    component_label: str,
+    block_offset: int,
+    block_text: str,
+    template_mode: bool,
+) -> None:
+    """Validate default icon placement for text-with-icon buttons and the icon-only exception."""
+    issue_prefix = "DSL_TEMPLATE_VALUE" if template_mode else "DSL_RULE_VALUE"
+    button_template_meta = extract_clean_property_value(block_text, "buttonTemplate")
+    if not button_template_meta:
+        return
+
+    button_template, button_template_offset = button_template_meta
+    if "{{" in button_template and "}}" in button_template:
+        return
+
+    option_entries = extract_template_option_entries(block_text)
+    has_variable_options = any("{{" in token and "}}" in token for token, _offset in option_entries)
+    position_entries = [
+        (token.strip().rstrip(","), token_offset)
+        for token, token_offset in option_entries
+        if token.strip().rstrip(",") in BUTTON_ICON_POSITION_TEMPLATE_OPTIONS
+    ]
+
+    if button_template == "@/text-with-icon":
+        icon_meta = extract_clean_property_value(block_text, "icon")
+        if not icon_meta:
+            return
+        icon_value, icon_offset = icon_meta
+        if not icon_value or icon_value.lower() == "null" or ("{{" in icon_value and "}}" in icon_value):
+            return
+        if has_variable_options:
+            return
+        if not position_entries:
+            issues.append(
+                f"{display_path(path)}:{line_no(text, component_start + block_offset + icon_offset)}: "
+                f"{issue_prefix} {component_label} appearance.templateOptions must include "
+                "'t-Button--iconLeft' by default, or 't-Button--iconRight' when explicitly requested, "
+                "when @/text-with-icon has an icon"
+            )
+            return
+        if len(position_entries) > 1:
+            _token, token_offset = position_entries[1]
+            issues.append(
+                f"{display_path(path)}:{line_no(text, component_start + block_offset + token_offset)}: "
+                f"{issue_prefix} {component_label} appearance.templateOptions must include exactly one "
+                "button icon-position option for @/text-with-icon"
+            )
+        return
+
+    if button_template == "@/icon" and position_entries:
+        token, token_offset = position_entries[0]
+        issues.append(
+            f"{display_path(path)}:{line_no(text, component_start + block_offset + token_offset)}: "
+            f"{issue_prefix} {component_label} appearance.templateOptions must not include '{token}' "
+            "for icon-only @/icon buttons"
+        )
+
+
 def lint_button_template_option_contract(path: Path, text: str, *, template_mode: bool) -> list[str]:
     """Validate button appearance.templateOptions blocks in templates and final .apx files."""
     issues: list[str] = []
@@ -2852,6 +2984,16 @@ def lint_button_template_option_contract(path: Path, text: str, *, template_mode
         block_offset, block_text = appearance_meta
         component_label = f"button '{button_name}'"
         lint_button_template_option_values(
+            issues=issues,
+            path=path,
+            text=text,
+            component_start=start,
+            component_label=component_label,
+            block_offset=block_offset,
+            block_text=block_text,
+            template_mode=template_mode,
+        )
+        lint_button_icon_position_contract(
             issues=issues,
             path=path,
             text=text,
@@ -3313,6 +3455,7 @@ def lint_sql_lob_comparison_keys(path: Path, text: str) -> list[str]:
     )
 
     def inspect_sql(snippet: str, snippet_base: int, label: str) -> None:
+        """Inspect one SQL snippet for raw LOB comparison-key usage."""
         sql = strip_sql_comments(snippet)
         if not sql.strip():
             return
@@ -3786,6 +3929,7 @@ def translation_language_suffixes(language: str) -> list[str]:
     candidates: list[str] = []
 
     def add_suffix(token: str) -> None:
+        """Append a unique accepted suffix candidate."""
         if token and token not in candidates:
             candidates.append(token)
 
@@ -4096,12 +4240,14 @@ def lint_report_column_rendering(path: Path, text: str) -> list[str]:
             column_start = region_start + column_offset
             component_label = f"column '{column_name}' in region '{region_name}' type '{region_type}'"
             column_type: str | None = None
+            column_type_offset: int | None = None
 
             for prop_name, prop_value, prop_offset in extract_immediate_property_values(column_block):
                 if prop_name == "type":
                     normalized_type = clean_scalar_value(prop_value).lower()
                     if normalized_type:
                         column_type = normalized_type
+                        column_type_offset = prop_offset
                 if prop_name == "htmlExpression":
                     issues.append(
                         f"{display_path(path)}:{line_no(text, column_start + prop_offset)}: "
@@ -4110,6 +4256,23 @@ def lint_report_column_rendering(path: Path, text: str) -> list[str]:
                     )
 
             column_blocks = extract_top_level_blocks(column_block)
+            link_meta = column_blocks.get("link")
+            if region_type == "classicReport" and link_meta and column_type != "link":
+                link_offset, _link_block = link_meta
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, column_start + link_offset)}: "
+                    f"CLASSIC_REPORT_LINK_COLUMN_TYPE_REQUIRED_001 {component_label} emits link {{}} but must also "
+                    "emit top-level type: link"
+                )
+
+            if region_type == "interactiveReport" and column_type == "link":
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, column_start + (column_type_offset or 0))}: "
+                    f"INTERACTIVE_REPORT_LINK_COLUMN_TYPE_FORBIDDEN_001 {component_label} uses type: link; "
+                    "type: link is Classic Report-only and Interactive Report links must keep type: plainText "
+                    "with link {}"
+                )
+
             security_meta = column_blocks.get("security")
             if security_meta and is_business_app_path(path):
                 security_offset, security_block = security_meta
@@ -4162,12 +4325,14 @@ def lint_classic_report_default_templates(path: Path, text: str) -> list[str]:
     default_component_options = ["#DEFAULT#", "t-Report--stretch", "t-Report--horizontalBorders"]
 
     def property_value(block_text: str, prop_name: str) -> tuple[str, int] | None:
+        """Return the first matching property value and offset from a block."""
         for found_name, found_value, found_offset in extract_property_values(block_text):
             if found_name == prop_name:
                 return found_value, found_offset
         return None
 
     def template_options(block_text: str) -> list[tuple[str, int]]:
+        """Return cleaned template option entries from a block."""
         entries: list[tuple[str, int]] = []
         for token, token_offset in extract_template_option_entries(block_text):
             cleaned = token.strip().rstrip(",")
@@ -5581,12 +5746,14 @@ def lint_static_id_where_lower(path: Path, text: str) -> list[str]:
     )
 
     def add_issue(abs_idx: int, detail: str) -> None:
+        """Append one normalized static-id comparison issue."""
         issues.append(
             f"{display_path(path)}:{line_no(text, abs_idx)}: "
             f"STATIC_ID_WHERE_LOWER_REQUIRED_001 {detail}"
         )
 
     def inspect_sql_snippet(snippet: str, base_idx: int, context: str) -> None:
+        """Inspect one SQL snippet for unnormalized static-id comparisons."""
         for match in bare_cmp_pattern.finditer(snippet):
             add_issue(
                 base_idx + match.start("col"),
@@ -5633,6 +5800,7 @@ def lint_inline_code_block_char_limits(path: Path, text: str) -> list[str]:
         return issues
 
     def sql_block_context(body_start: int, lang: str) -> tuple[str, str]:
+        """Return a concise context label and remediation for an inline code block."""
         if lang != "sql":
             return (f"inline {lang.upper()} body", "extract to `app_process_api` (or justified package) and reference it declaratively")
 
@@ -5695,6 +5863,7 @@ def extract_acl_referenced_roles(text: str) -> dict[str, int]:
     refs: dict[str, int] = {}
 
     def add_ref(role: str, idx: int) -> None:
+        """Record the first source position for one ACL role reference."""
         cleaned = role.strip().strip("\"'")
         if cleaned:
             refs.setdefault(cleaned, idx)
@@ -5938,6 +6107,26 @@ def lint_map_layer_children(
                     block_text=block_text,
                     block_meta=block_meta,
                 )
+            if block_name == "link":
+                link_props = {
+                    prop_name: (prop_value, prop_offset)
+                    for prop_name, prop_value, prop_offset in extract_immediate_brace_property_values(block_text)
+                }
+                link_type_meta = link_props.get("type")
+                has_target = "target" in link_props or bool(extract_property_object_block(block_text, "target"))
+                has_target_url = "targetUrl" in link_props
+                if has_target and not link_type_meta:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, absolute_start + block_offset)}: "
+                        f"MAP_LAYER_LINK_TYPE_REQUIRED_001 {layer_label} link.target requires link.type: redirectThisApp; "
+                        "live compiler rejects target while link.type is omitted"
+                    )
+                if has_target_url and not link_type_meta:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, absolute_start + block_offset)}: "
+                        f"MAP_LAYER_LINK_TYPE_REQUIRED_001 {layer_label} link.targetUrl requires link.type: redirectUrl; "
+                        "live compiler rejects targetUrl while link.type is omitted"
+                    )
 
         source_meta = layer_top_level_blocks.get("source")
         if source_meta:
@@ -6104,6 +6293,24 @@ def lint_region_contracts(path: Path, text: str, schema: dict, validation_contex
                 f"DSL_RULE_REQUIRED {component_label} must define block '{block_name}'"
             )
 
+        if region_type_key == "classicReport":
+            for block_name in ("componentAppearance", "pagination"):
+                block_data = top_level_blocks.get(block_name)
+                block_meta = region_schema.get(block_name)
+                if block_data and is_block_meta(block_meta):
+                    block_offset, block_text = block_data
+                    lint_block_properties(
+                        issues=issues,
+                        path=path,
+                        text=text,
+                        component_start=start,
+                        component_label=component_label,
+                        block_name=block_name,
+                        block_offset=block_offset,
+                        block_text=block_text,
+                        block_meta=block_meta,
+                    )
+
         if region_type_key == "calendar":
             settings_meta = top_level_blocks.get("settings")
             if settings_meta and is_block_meta(region_schema.get("settings")):
@@ -6224,7 +6431,7 @@ def lint_region_contracts(path: Path, text: str, schema: dict, validation_contex
             chart_type = ""
             if chart_block_meta:
                 _chart_offset, chart_block = chart_block_meta
-                for prop_name, prop_value, _prop_offset in extract_immediate_property_values(chart_block):
+                for prop_name, prop_value, _prop_offset in extract_immediate_brace_property_values(chart_block):
                     if prop_name == "type":
                         chart_type = clean_scalar_value(prop_value)
                         break
@@ -7506,6 +7713,7 @@ def is_business_app_path(path: Path) -> bool:
 
 
 def block_property_map(block: str) -> dict[str, tuple[str, int]]:
+    """Return immediate property values keyed by property name."""
     return {name: (value, offset) for name, value, offset in extract_property_values(block)}
 
 
@@ -7516,10 +7724,12 @@ def clean_component_ref(value: str) -> str:
 
 
 def has_security_review_rationale(block: str) -> bool:
+    """Return true when a block contains an explicit public-page security rationale."""
     return bool(re.search(r"(?is)security[- ]review|public[- ]page[- ]review|reviewed\s+public", block))
 
 
 def is_login_page(page_name: str, page_block: str) -> bool:
+    """Return true when a page is clearly an APEX login page."""
     if clean_scalar_value(page_name) in {"9999", "101"}:
         return True
     props = {name: clean_scalar_value(value).upper() for name, value, _offset in extract_immediate_property_values(page_block)}
@@ -7664,48 +7874,193 @@ def lint_form_edit_contract(path: Path, text: str) -> list[str]:
     return issues
 
 
-def lint_saved_report_visibility_contract(path: Path, text: str) -> list[str]:
-    """Reject legacy savedReport visibility tokens."""
+def saved_report_runtime_lov_values(record: dict[str, Any], property_name: str) -> tuple[str, ...]:
+    """Return DSL-facing LOV names for a savedReport compiler metadata property."""
+    groups = record.get("groups")
+    if not isinstance(groups, dict):
+        return ()
+    for group_props in groups.values():
+        if not isinstance(group_props, list):
+            continue
+        for prop in group_props:
+            if not isinstance(prop, dict) or prop.get("propertyName") != property_name:
+                continue
+            lov = prop.get("lov")
+            if not isinstance(lov, dict):
+                return ()
+            values = lov.get("values")
+            if not isinstance(values, list):
+                return ()
+            names = tuple(
+                str(value.get("name"))
+                for value in values
+                if isinstance(value, dict) and value.get("name")
+            )
+            return names
+    return ()
+
+
+def saved_report_visibility_contract(ctx: LintContext, region_type: str) -> tuple[tuple[str, ...], str]:
+    """Resolve savedReport.visibility values from compiler metadata or local fallback guidance."""
+    cache_key = f"savedReport.visibility.{region_type}"
+    cached = ctx.cache.get(cache_key)
+    if isinstance(cached, tuple) and len(cached) == 2:
+        return cached  # type: ignore[return-value]
+
+    runtime_component_map = ctx.runtime_component_map
+    if isinstance(runtime_component_map, dict):
+        component_types = runtime_component_map.get("componentTypes")
+        if isinstance(component_types, list):
+            for record in component_types:
+                if not isinstance(record, dict) or record.get("singular") != "savedReport":
+                    continue
+                default_values = set(saved_report_runtime_lov_values(record, "default"))
+                matches_region = (
+                    (region_type == "interactiveGrid" and "grid" in default_values)
+                    or (region_type == "interactiveReport" and "report" in default_values)
+                )
+                if not matches_region:
+                    continue
+                visibility_values = saved_report_runtime_lov_values(record, "visibility")
+                if visibility_values:
+                    source = f"runtime metadata componentTypeId {record.get('componentTypeId')}"
+                    result = (visibility_values, source)
+                    ctx.cache[cache_key] = result
+                    return result
+
+    fallback = SAVED_REPORT_VISIBILITY_FALLBACKS.get(region_type, ())
+    result = (fallback, "local fallback docs")
+    ctx.cache[cache_key] = result
+    return result
+
+
+def lint_saved_report_visibility_contract(ctx: LintContext) -> list[str]:
+    """Validate savedReport visibility tokens against the parent report region variant."""
     issues: list[str] = []
 
-    for block_start, block_name, block in find_component_blocks(text, "savedReport"):
-        for prop_name, prop_value, prop_offset in extract_immediate_property_values(block):
-            if prop_name != "visibility":
+    for page_start, page_name, page_block in find_component_blocks(ctx.text, "page"):
+        for region_offset, region_name, region_block in find_immediate_component_blocks(page_block, "region"):
+            region_type = extract_item_type(region_block)
+            if region_type not in SAVED_REPORT_VISIBILITY_FALLBACKS:
                 continue
-            if clean_scalar_value(prop_value) != "primary":
+            allowed_values, source = saved_report_visibility_contract(ctx, region_type)
+            if not allowed_values:
                 continue
-            issues.append(
-                f"{display_path(path)}:{line_no(text, block_start + prop_offset)}: "
-                f"SAVED_REPORT_VISIBILITY_LEGACY_001 savedReport '{block_name}' must not define visibility: primary; "
-                "use visibility: primaryDefault"
-            )
+            allowed_normalized = {normalize_value(value) for value in allowed_values}
+            for saved_offset, saved_name, saved_block in find_immediate_component_blocks(region_block, "savedReport"):
+                for prop_name, prop_value, prop_offset in extract_immediate_property_values(saved_block):
+                    if prop_name != "visibility":
+                        continue
+                    visibility = clean_scalar_value(prop_value)
+                    if normalize_value(visibility) in allowed_normalized:
+                        continue
+                    issues.append(
+                        f"{display_path(ctx.path)}:{line_no(ctx.text, page_start + region_offset + saved_offset + prop_offset)}: "
+                        f"SAVED_REPORT_VISIBILITY_LEGACY_001 page '{page_name}' {region_type} region '{region_name}' "
+                        f"savedReport '{saved_name}' defines unsupported visibility: {visibility}; "
+                        f"allowed values from {source} are: {', '.join(allowed_values)}"
+                    )
 
     return issues
 
 
-def lint_faceted_search_current_facets_selector_contract(path: Path, text: str) -> list[str]:
-    """Reject stale faceted-search currentFacetsSelector usage."""
+def lint_faceted_search_settings_contract(path: Path, text: str) -> list[str]:
+    """Validate faceted-search default settings and opt-in selector/chart settings."""
     issues: list[str] = []
+    required_default_values = {
+        "compactNosThreshold": "10000",
+        "showTotalRowCount": "true",
+    }
 
     for page_start, page_name, page_block in find_component_blocks(text, "page"):
         for region_offset, region_name, region_block in find_immediate_component_blocks(page_block, "region"):
             if extract_item_type(region_block) != "facetedSearch":
                 continue
+            component_label = f"page '{page_name}' facetedSearch region '{region_name}'"
             top_level_blocks = extract_top_level_blocks(region_block)
             settings_meta = top_level_blocks.get("settings")
             if not settings_meta:
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, page_start + region_offset)}: "
+                    f"FACETED_SEARCH_DEFAULT_SETTINGS_REQUIRED_001 {component_label} must define settings with "
+                    "compactNosThreshold: 10000, showCurrentFacets: true, and showTotalRowCount: true"
+                )
                 continue
+
             settings_offset, settings_block = settings_meta
             settings_props = block_property_map(settings_block)
+
+            for prop_name, expected_value in required_default_values.items():
+                prop_meta = settings_props.get(prop_name)
+                if not prop_meta:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, page_start + region_offset + settings_offset)}: "
+                        f"FACETED_SEARCH_DEFAULT_SETTINGS_REQUIRED_001 {component_label} settings must define "
+                        f"{prop_name}: {expected_value}"
+                    )
+                    continue
+                prop_value, prop_offset = prop_meta
+                actual_value = clean_scalar_value(prop_value).lower()
+                if actual_value != expected_value:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, page_start + region_offset + settings_offset + prop_offset)}: "
+                        f"FACETED_SEARCH_DEFAULT_SETTINGS_REQUIRED_001 {component_label} settings.{prop_name} "
+                        f"must be {expected_value}"
+                    )
+
+            show_current_meta = settings_props.get("showCurrentFacets")
+            show_current_value = ""
+            if not show_current_meta:
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, page_start + region_offset + settings_offset)}: "
+                    f"FACETED_SEARCH_DEFAULT_SETTINGS_REQUIRED_001 {component_label} settings must define "
+                    "showCurrentFacets: true"
+                )
+            else:
+                show_current_raw, show_current_offset = show_current_meta
+                show_current_value = clean_scalar_value(show_current_raw).lower()
+                if show_current_value not in {"true", "selector"}:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, page_start + region_offset + settings_offset + show_current_offset)}: "
+                        f"FACETED_SEARCH_DEFAULT_SETTINGS_REQUIRED_001 {component_label} settings.showCurrentFacets "
+                        "must be true by default or selector for explicit selector mode"
+                    )
+
             selector_meta = settings_props.get("currentFacetsSelector")
-            if not selector_meta:
-                continue
-            _selector_value, selector_offset = selector_meta
-            issues.append(
-                f"{display_path(path)}:{line_no(text, page_start + region_offset + settings_offset + selector_offset)}: "
-                f"FACETED_SEARCH_CURRENT_FACETS_SELECTOR_INVALID_001 page '{page_name}' facetedSearch region '{region_name}' "
-                "must not define settings.currentFacetsSelector; the live importer rejects that property in this runtime"
-            )
+            if selector_meta and show_current_value != "selector":
+                _selector_value, selector_offset = selector_meta
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, page_start + region_offset + settings_offset + selector_offset)}: "
+                    f"FACETED_SEARCH_SELECTOR_MODE_REQUIRED_001 {component_label} must define "
+                    "settings.showCurrentFacets: selector when settings.currentFacetsSelector is present"
+                )
+            if show_current_value == "selector":
+                if not selector_meta:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, page_start + region_offset + settings_offset)}: "
+                        f"FACETED_SEARCH_CURRENT_FACETS_SELECTOR_REQUIRED_001 {component_label} must define "
+                        "settings.currentFacetsSelector when settings.showCurrentFacets: selector is used"
+                    )
+                else:
+                    selector_value, selector_offset = selector_meta
+                    cleaned_selector = clean_scalar_value(selector_value)
+                    if not cleaned_selector or cleaned_selector == "<selector>" or "{{" in cleaned_selector or "}}" in cleaned_selector:
+                        issues.append(
+                            f"{display_path(path)}:{line_no(text, page_start + region_offset + settings_offset + selector_offset)}: "
+                            f"FACETED_SEARCH_CURRENT_FACETS_SELECTOR_REQUIRED_001 {component_label} "
+                            "settings.currentFacetsSelector must be a concrete selector value"
+                        )
+
+            chart_top_n_meta = settings_props.get("displayChartForTopNValues")
+            if chart_top_n_meta:
+                chart_top_n_value, chart_top_n_offset = chart_top_n_meta
+                cleaned_chart_top_n = clean_scalar_value(chart_top_n_value)
+                if not re.fullmatch(r"[1-9][0-9]*", cleaned_chart_top_n):
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, page_start + region_offset + settings_offset + chart_top_n_offset)}: "
+                        f"FACETED_SEARCH_DISPLAY_CHART_TOP_N_INVALID_001 {component_label} "
+                        "settings.displayChartForTopNValues must be a positive integer"
+                    )
 
     return issues
 
@@ -7733,6 +8088,253 @@ def lint_interactive_report_link_column_contract(path: Path, text: str) -> list[
                     f"INTERACTIVE_REPORT_LINK_COLUMN_INVALID_001 page '{page_name}' interactiveReport region '{region_name}' "
                     f"must not define link.linkColumn: {value}; use compiler-backed values such as customTarget, exclude, or singleRowView"
                 )
+
+    return issues
+
+
+def lint_report_region_link_block_live_contract(path: Path, text: str) -> list[str]:
+    """Reject report-level link blocks that the live 26.1 compiler does not accept."""
+    issues: list[str] = []
+    report_types = {"classicReport", "interactiveReport"}
+
+    for page_start, page_name, page_block in find_component_blocks(text, "page"):
+        for region_offset, region_name, region_block in find_immediate_component_blocks(page_block, "region"):
+            region_type = extract_item_type(region_block) or ""
+            if region_type not in report_types:
+                continue
+            for link_offset, _link_block in find_immediate_named_brace_blocks(region_block, "link"):
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, page_start + region_offset + link_offset)}: "
+                    f"REPORT_REGION_LINK_BLOCK_UNSUPPORTED_001 page '{page_name}' {region_type} region "
+                    f"'{region_name}' must not define a report-level link block; live compiler 26.1 rejects "
+                    "linkColumn/target/linkIcon at region scope"
+                )
+
+    return issues
+
+
+def lint_interactive_report_column_live_metadata(path: Path, text: str) -> list[str]:
+    """Require live-compiler column metadata for Interactive Report child columns."""
+    issues: list[str] = []
+
+    for page_start, page_name, page_block in find_component_blocks(text, "page"):
+        for region_offset, region_name, region_block in find_immediate_component_blocks(page_block, "region"):
+            if extract_item_type(region_block) != "interactiveReport":
+                continue
+            for column_offset, column_name, column_block in find_immediate_component_blocks(region_block, "column"):
+                absolute_start = page_start + region_offset + column_offset
+                column_props = {
+                    prop_name: (prop_value, prop_offset)
+                    for prop_name, prop_value, prop_offset in extract_immediate_property_values(column_block)
+                }
+                if "type" not in column_props:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, absolute_start)}: "
+                        f"INTERACTIVE_REPORT_COLUMN_METADATA_REQUIRED_001 page '{page_name}' interactiveReport "
+                        f"region '{region_name}' column '{column_name}' must define top-level type: plainText "
+                        "or another compiler-backed column type"
+                    )
+
+                column_blocks = extract_top_level_blocks(column_block)
+                source_meta = column_blocks.get("source")
+                if not source_meta:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, absolute_start)}: "
+                        f"INTERACTIVE_REPORT_COLUMN_METADATA_REQUIRED_001 page '{page_name}' interactiveReport "
+                        f"region '{region_name}' column '{column_name}' must define source.dataType for live compiler property 268"
+                    )
+                    continue
+
+                source_offset, source_block = source_meta
+                source_props = {
+                    prop_name: (prop_value, prop_offset)
+                    for prop_name, prop_value, prop_offset in extract_immediate_brace_property_values(source_block)
+                }
+                if "dataType" not in source_props:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, absolute_start + source_offset)}: "
+                        f"INTERACTIVE_REPORT_COLUMN_METADATA_REQUIRED_001 page '{page_name}' interactiveReport "
+                        f"region '{region_name}' column '{column_name}' source block must define dataType"
+                    )
+
+    return issues
+
+
+def lint_filter_and_facet_identifier_contract(path: Path, text: str) -> list[str]:
+    """Require smart-filter and faceted-search child identifiers that live compiler accepts."""
+    issues: list[str] = []
+
+    for page_start, page_name, page_block in find_component_blocks(text, "page"):
+        for region_offset, region_name, region_block in find_immediate_component_blocks(page_block, "region"):
+            region_type = extract_item_type(region_block) or ""
+            if region_type == "smartFilters":
+                child_keyword = "filter"
+            elif region_type == "facetedSearch":
+                child_keyword = "facet"
+            else:
+                continue
+
+            for child_offset, child_identifier, _child_block in find_immediate_component_blocks(region_block, child_keyword):
+                if component_identifier_is_live_external(child_identifier):
+                    continue
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, page_start + region_offset + child_offset)}: "
+                    f"FILTER_FACET_IDENTIFIER_INVALID_001 page '{page_name}' {region_type} region '{region_name}' "
+                    f"{child_keyword} identifier '{child_identifier}' must be uppercase snake_case such as "
+                    "P7_SEARCH or FS_STATUS; live compiler rejects lower-case and hyphenated external identifiers"
+                )
+
+    return issues
+
+
+def lint_content_row_action_layout_sequence_contract(path: Path, text: str) -> list[str]:
+    """Require live-compiler action layout sequencing for content-row template components."""
+    issues: list[str] = []
+
+    for page_start, page_name, page_block in find_component_blocks(text, "page"):
+        for region_offset, region_name, region_block in find_immediate_component_blocks(page_block, "region"):
+            if extract_item_type(region_block) != "themeTemplateComponent/contentRow":
+                continue
+            for action_offset, action_name, action_block in find_immediate_component_blocks(region_block, "action"):
+                action_start = page_start + region_offset + action_offset
+                top_level_blocks = extract_top_level_blocks(action_block)
+                layout_meta = top_level_blocks.get("layout")
+                if not layout_meta:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, action_start)}: "
+                        f"CONTENT_ROW_ACTION_LAYOUT_SEQUENCE_REQUIRED_001 page '{page_name}' contentRow region "
+                        f"'{region_name}' action '{action_name}' must define layout.sequence; live compiler "
+                        "requires component layout sequence for region actions"
+                    )
+                    continue
+                layout_offset, layout_block = layout_meta
+                layout_props = {
+                    prop_name: (prop_value, prop_offset)
+                    for prop_name, prop_value, prop_offset in extract_immediate_brace_property_values(layout_block)
+                }
+                if "sequence" not in layout_props:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, action_start + layout_offset)}: "
+                        f"CONTENT_ROW_ACTION_LAYOUT_SEQUENCE_REQUIRED_001 page '{page_name}' contentRow region "
+                        f"'{region_name}' action '{action_name}' layout block must define sequence"
+                    )
+
+    return issues
+
+
+def lint_list_region_live_template_contract(path: Path, text: str) -> list[str]:
+    """Require list regions to use componentAppearance.listTemplate instead of appearance.template."""
+    issues: list[str] = []
+
+    for page_start, page_name, page_block in find_component_blocks(text, "page"):
+        for region_offset, region_name, region_block in find_immediate_component_blocks(page_block, "region"):
+            if extract_item_type(region_block) != "list":
+                continue
+            region_start = page_start + region_offset
+            top_level_blocks = extract_top_level_blocks(region_block)
+
+            component_appearance_meta = top_level_blocks.get("componentAppearance")
+            if not component_appearance_meta:
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, region_start)}: "
+                    f"LIST_REGION_TEMPLATE_REQUIRED_001 page '{page_name}' list region '{region_name}' "
+                    "must define componentAppearance.listTemplate; live compiler requires listTemplate"
+                )
+            else:
+                component_appearance_offset, component_appearance_block = component_appearance_meta
+                component_appearance_props = {
+                    prop_name: (prop_value, prop_offset)
+                    for prop_name, prop_value, prop_offset in extract_immediate_brace_property_values(component_appearance_block)
+                }
+                if "listTemplate" not in component_appearance_props:
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, region_start + component_appearance_offset)}: "
+                        f"LIST_REGION_TEMPLATE_REQUIRED_001 page '{page_name}' list region '{region_name}' "
+                        "componentAppearance block must define listTemplate"
+                    )
+
+            appearance_meta = top_level_blocks.get("appearance")
+            if appearance_meta:
+                appearance_offset, appearance_block = appearance_meta
+                for prop_name, _prop_value, prop_offset in extract_immediate_brace_property_values(appearance_block):
+                    if prop_name not in {"template", "templateOptions"}:
+                        continue
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, region_start + appearance_offset + prop_offset)}: "
+                        f"LIST_REGION_TEMPLATE_PLACEMENT_001 page '{page_name}' list region '{region_name}' "
+                        f"must not define appearance.{prop_name}; put the list template in "
+                        "componentAppearance.listTemplate"
+                    )
+
+    return issues
+
+
+def lint_interactive_report_saved_report_live_contract(path: Path, text: str) -> list[str]:
+    """Reject Interactive Report savedReport properties that live compiler 26.1 rejects."""
+    issues: list[str] = []
+
+    for page_start, page_name, page_block in find_component_blocks(text, "page"):
+        for region_offset, region_name, region_block in find_immediate_component_blocks(page_block, "region"):
+            if extract_item_type(region_block) != "interactiveReport":
+                continue
+            for saved_offset, saved_name, saved_block in find_immediate_component_blocks(region_block, "savedReport"):
+                saved_start = page_start + region_offset + saved_offset
+                for prop_name, _prop_value, prop_offset in extract_immediate_property_values(saved_block):
+                    if prop_name != "name":
+                        continue
+                    issues.append(
+                        f"{display_path(path)}:{line_no(text, saved_start + prop_offset)}: "
+                        f"INTERACTIVE_REPORT_SAVED_REPORT_NAME_UNSUPPORTED_001 page '{page_name}' "
+                        f"interactiveReport region '{region_name}' savedReport '{saved_name}' must not define "
+                        "name; live compiler 26.1 rejects savedReport.name for interactive reports"
+                    )
+
+    return issues
+
+
+def lint_invoke_api_parameter_expression_contract(path: Path, text: str) -> list[str]:
+    """Reject multiline scalar plsqlExpression values in invokeApi process parameters."""
+    issues: list[str] = []
+
+    for page_start, page_name, page_block in find_component_blocks(text, "page"):
+        for process_offset, process_name, process_block in find_immediate_component_blocks(page_block, "process"):
+            process_type = extract_item_type(process_block)
+            if process_type != "invokeApi":
+                continue
+            for parameter_offset, parameter_name, parameter_block in find_immediate_component_blocks(process_block, "parameter"):
+                parameter_start = page_start + process_offset + parameter_offset
+                top_level_blocks = extract_top_level_blocks(parameter_block)
+                value_meta = top_level_blocks.get("value")
+                if not value_meta:
+                    continue
+                value_offset, value_block = value_meta
+                value_block_offset, value_body = block_body(value_block)
+                lines = value_body.splitlines(keepends=True)
+                running_offset = 0
+                for index, line in enumerate(lines):
+                    match = re.match(r"^[ \t]*plsqlExpression\s*:\s*(?P<value>.*?)\s*$", line)
+                    if not match:
+                        running_offset += len(line)
+                        continue
+                    expression_value = match.group("value").strip()
+                    if not expression_value or expression_value.startswith("```"):
+                        running_offset += len(line)
+                        continue
+
+                    next_nonblank = ""
+                    for following_line in lines[index + 1 :]:
+                        candidate = following_line.strip()
+                        if candidate:
+                            next_nonblank = candidate
+                            break
+                    if next_nonblank and not next_nonblank.startswith(("}", "```")):
+                        issues.append(
+                            f"{display_path(path)}:{line_no(text, parameter_start + value_offset + value_block_offset + running_offset + match.start('value'))}: "
+                            f"INVOKE_API_PARAMETER_EXPRESSION_MULTILINE_001 page '{page_name}' invokeApi process "
+                            f"'{process_name}' parameter '{parameter_name}' value.plsqlExpression must be a single-line "
+                            "scalar expression or a fenced PL/SQL property body; live compiler rejects line-broken scalar expressions"
+                        )
+                    running_offset += len(line)
 
     return issues
 
@@ -8047,6 +8649,18 @@ def lint_theme_contract(path: Path, text: str) -> list[str]:
     start, theme_name, theme_block = theme_blocks[0]
     top_level_blocks = extract_top_level_blocks(theme_block)
     immediate_props = {name: (value, offset) for name, value, offset in extract_immediate_property_values(theme_block)}
+    subscription_meta = top_level_blocks.get("subscription")
+    if subscription_meta:
+        subscription_offset, subscription_text = subscription_meta
+        subscription_props = {
+            name: prop_offset for name, _value, prop_offset in extract_property_values(subscription_text)
+        }
+        if "master" in subscription_props:
+            issues.append(
+                f"{display_path(path)}:{line_no(text, start + subscription_offset + subscription_props['master'])}: "
+                f"THEME_MASTER_SUBSCRIPTION_FORBIDDEN_001 theme '{theme_name}' must not define subscription.master; "
+                "generated theme.apx files must not assume a master theme subscription"
+            )
 
     if "themeNumber" not in immediate_props:
         issues.append(
@@ -8173,6 +8787,14 @@ def lint_dynamic_action_contract(path: Path, text: str) -> list[str]:
                     )
 
         for action_offset, action_name, action_block in find_immediate_component_blocks(block, "action"):
+            for brace_offset in unmatched_closing_brace_offsets(action_block):
+                issues.append(
+                    f"{display_path(path)}:{line_no(text, start + action_offset + brace_offset)}: "
+                    f"DYNAMIC_ACTION_ACTION_BRACE_INVALID_001 dynamicAction '{dynamic_action_name}' "
+                    f"action '{action_name}' has an unmatched closing brace; action components must close with ')' "
+                    "after their child blocks"
+                )
+
             top_level_blocks = extract_top_level_blocks(action_block)
             execution_meta = top_level_blocks.get("execution")
             if not execution_meta:
@@ -8454,6 +9076,7 @@ def _ctx_path_text_lint(fn: Callable[[Path, str], list[str]]) -> LintRunner:
 
     @wraps(fn)
     def runner(ctx: LintContext) -> list[str]:
+        """Run a path/text lint against the current lint context."""
         return fn(ctx.path, ctx.text)
 
     return runner
@@ -8464,6 +9087,7 @@ def _ctx_path_text_schema_lint(fn: Callable[[Path, str, dict], list[str]]) -> Li
 
     @wraps(fn)
     def runner(ctx: LintContext) -> list[str]:
+        """Run a path/text/schema lint against the current lint context."""
         return fn(ctx.path, ctx.text, ctx.schema)
 
     return runner
@@ -8474,6 +9098,7 @@ def _ctx_path_text_validation_lint(fn: Callable[[Path, str, dict[str, Any] | Non
 
     @wraps(fn)
     def runner(ctx: LintContext) -> list[str]:
+        """Run a path/text/validation-context lint against the current lint context."""
         return fn(ctx.path, ctx.text, ctx.validation_context)
 
     return runner
@@ -8484,6 +9109,7 @@ def _ctx_path_text_schema_validation_lint(fn: Callable[[Path, str, dict, dict[st
 
     @wraps(fn)
     def runner(ctx: LintContext) -> list[str]:
+        """Run a path/text/schema/validation-context lint against the current lint context."""
         return fn(ctx.path, ctx.text, ctx.schema, ctx.validation_context)
 
     return runner
@@ -8493,6 +9119,7 @@ def _ctx_button_template_option_lint(*, template_mode: bool) -> LintRunner:
     """Bind the template-mode flag for button template-option validation."""
 
     def runner(ctx: LintContext) -> list[str]:
+        """Run button template-option linting for the selected file mode."""
         return lint_button_template_option_contract(ctx.path, ctx.text, template_mode=template_mode)
 
     runner.__name__ = f"lint_button_template_option_contract_{'template' if template_mode else 'apx'}"
@@ -8663,7 +9290,12 @@ def lint_calendar_template_contract(ctx: LintContext) -> list[str]:
     return issues
 
 
-APX_LINTERS: list[LintRunner] = [
+# Lint registry
+#
+# Keep this as grouped lists inside the single shipped validator file. That gives
+# future rules clearer homes without growing the distributed Python file surface.
+
+APX_STRUCTURE_AND_FORMAT_LINTERS: list[LintRunner] = [
     _ctx_path_text_lint(lint_apx_line_endings),
     _ctx_path_text_lint(lint_page_filename_identity_contract),
     _ctx_path_text_lint(lint_layout_scopes),
@@ -8674,11 +9306,17 @@ APX_LINTERS: list[LintRunner] = [
     _ctx_path_text_lint(lint_multiline_structure_rules),
     _ctx_path_text_lint(lint_live_compiler_slot_contract),
     _ctx_button_template_option_lint(template_mode=False),
+]
+
+APX_APP_AND_SHARED_METADATA_LINTERS: list[LintRunner] = [
     _ctx_path_text_schema_validation_lint(lint_region_contracts),
     _ctx_path_text_lint(lint_dynamic_action_contract),
     _ctx_path_text_lint(lint_application_contract),
     _ctx_path_text_lint(lint_theme_contract),
     _ctx_path_text_lint(lint_translation_text_messages),
+]
+
+APX_NAVIGATION_REPORT_AND_REGION_LINTERS: list[LintRunner] = [
     _ctx_path_text_lint(lint_declarative_navigation_targets),
     _ctx_path_text_lint(lint_report_column_rendering),
     _ctx_path_text_lint(lint_classic_report_default_templates),
@@ -8697,6 +9335,9 @@ APX_LINTERS: list[LintRunner] = [
     _ctx_path_text_lint(lint_faceted_search_list_entries_contract),
     _ctx_path_text_lint(lint_report_sql_html_literals),
     _ctx_path_text_lint(lint_breadcrumb_parent_scope),
+]
+
+APX_SECURITY_SQL_AND_FORM_LINTERS: list[LintRunner] = [
     _ctx_path_text_lint(lint_image_upload_legacy_properties),
     _ctx_path_text_lint(lint_generated_security_contract),
     _ctx_path_text_lint(lint_inline_code_block_char_limits),
@@ -8705,12 +9346,22 @@ APX_LINTERS: list[LintRunner] = [
     _ctx_path_text_lint(lint_acl_role_declarations),
     _ctx_path_text_lint(lint_form_primary_key_contract),
     _ctx_path_text_lint(lint_form_edit_contract),
-    _ctx_path_text_lint(lint_saved_report_visibility_contract),
-    _ctx_path_text_lint(lint_faceted_search_current_facets_selector_contract),
+    lint_saved_report_visibility_contract,
+    _ctx_path_text_lint(lint_faceted_search_settings_contract),
     _ctx_path_text_lint(lint_interactive_report_link_column_contract),
+    _ctx_path_text_lint(lint_report_region_link_block_live_contract),
+    _ctx_path_text_lint(lint_interactive_report_column_live_metadata),
+    _ctx_path_text_lint(lint_filter_and_facet_identifier_contract),
+    _ctx_path_text_lint(lint_content_row_action_layout_sequence_contract),
+    _ctx_path_text_lint(lint_list_region_live_template_contract),
+    _ctx_path_text_lint(lint_interactive_report_saved_report_live_contract),
+    _ctx_path_text_lint(lint_invoke_api_parameter_expression_contract),
     _ctx_path_text_lint(lint_page_item_layout_legacy_properties),
     _ctx_path_text_lint(lint_page_item_region_slots),
     _ctx_path_text_lint(lint_display_only_source_types),
+]
+
+APX_SCHEMA_BACKED_LINTERS: list[LintRunner] = [
     _ctx_path_text_schema_lint(lint_component_settings_contract),
     _ctx_path_text_schema_lint(lint_shared_entry_contract),
     _ctx_path_text_lint(lint_breadcrumb_page_number_contract),
@@ -8718,11 +9369,22 @@ APX_LINTERS: list[LintRunner] = [
     lint_page_item_schema_contracts,
 ]
 
-TEMPLATE_LINTERS: list[LintRunner] = [
+APX_LINTERS: list[LintRunner] = [
+    *APX_STRUCTURE_AND_FORMAT_LINTERS,
+    *APX_APP_AND_SHARED_METADATA_LINTERS,
+    *APX_NAVIGATION_REPORT_AND_REGION_LINTERS,
+    *APX_SECURITY_SQL_AND_FORM_LINTERS,
+    *APX_SCHEMA_BACKED_LINTERS,
+]
+
+TEMPLATE_STRUCTURE_AND_FORMAT_LINTERS: list[LintRunner] = [
     _ctx_button_template_option_lint(template_mode=True),
     _ctx_path_text_lint(lint_button_template_option_inventory),
     _ctx_path_text_lint(lint_stale_template_option_values),
     _ctx_path_text_lint(lint_multiline_structure_rules),
+]
+
+TEMPLATE_NAVIGATION_ITEM_AND_REGION_LINTERS: list[LintRunner] = [
     _ctx_path_text_lint(lint_declarative_navigation_targets),
     _ctx_path_text_lint(lint_page_item_layout_legacy_properties),
     _ctx_path_text_lint(lint_page_item_region_slots),
@@ -8732,8 +9394,17 @@ TEMPLATE_LINTERS: list[LintRunner] = [
     _ctx_path_text_lint(lint_smart_filter_settings_contract),
     _ctx_path_text_lint(lint_image_upload_legacy_properties),
     _ctx_path_text_lint(lint_sql_lob_comparison_keys),
+]
+
+TEMPLATE_SCHEMA_EXAMPLE_LINTERS: list[LintRunner] = [
     lint_template_item_schema_examples,
     lint_calendar_template_contract,
+]
+
+TEMPLATE_LINTERS: list[LintRunner] = [
+    *TEMPLATE_STRUCTURE_AND_FORMAT_LINTERS,
+    *TEMPLATE_NAVIGATION_ITEM_AND_REGION_LINTERS,
+    *TEMPLATE_SCHEMA_EXAMPLE_LINTERS,
 ]
 
 
@@ -8759,6 +9430,7 @@ def main(argv: list[str]) -> int:
     runtime_component_map = schema.get("_runtimeComponentMap")
 
     def report_runtime_meta() -> dict[str, Any]:
+        """Return compiler metadata details for the JSON report."""
         if not isinstance(runtime_component_map, dict):
             return {
                 "source": schema.get("_runtimeComponentMapSource", "component-attributes-only"),

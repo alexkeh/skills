@@ -22,18 +22,22 @@ Inputs
 <task_scope>
 - Generate the initial APEXlang draft artifact from the provided inputs.
 - Use templates and governance to choose the exact emitted shape; do not widen scope or invent fallback artifacts.
+- Treat the Generation Plan as the boundary of what may be emitted. Do not add pages, regions, interactions, links, items, or component behavior that the plan did not authorize from loaded rules, templates, compiler truth, or the app spec.
 - Follow the posted rules and workflow first. Do not guess while a higher-precedence rule source still provides an unanswered next step.
 </task_scope>
 
 <allowed_sources>
 - **Templates:** Use `templates/**` only; never invent attributes or UT classes.
 - **Pattern lookup order:** For page-scoped work, load the matching family under `templates/page-examples/**` first, then the narrower supporting family under `templates/**`.
+- **Design boundary:** UX concepts, page patterns, component families, interactions, navigation modes, and template options must come from current template documentation, loaded memory-bank rules, governance, compiler-backed truth, or the approved application spec. Do not synthesize unsupported richer patterns from product intent alone.
 - **Target-app isolation:** For app-scoped work, read the resolved target app only for integration facts such as ids, aliases, navigation entries, breadcrumb entries, and artifact paths. Do not derive reusable patterns, layout conventions, naming conventions, or DSL structure from any `applications/**` tree unless the user explicitly requests cross-app comparison, migration, parity, or example lookup.
 - **Schema contract:** When `assets/component-attributes.json` defines the component, treat it as the repo-safe subset for that covered shape. Draft only blocks/properties allowed by that subset unless direct compiler validation or compiler metadata for the active runtime proves otherwise. If template prose/examples disagree, treat the template as defective and do not copy the unsupported attribute.
 - **Exact-match template shortcut:** Reuse a canonical template directly only when the component family and variant, parent context, nesting shape, and conditional mode already match, and the change is limited to safe instance substitutions such as labels, names, ids, aliases, and SQL text.
 - **Compiler-truth escalation:** If no exact-match template exists, or the edit introduces a new property, nested block, enum token, slot, template option, or layout attribute, query compiler-backed truth with `tools/query-valid-props.mjs` before drafting. If compiler-backed truth cannot be resolved, emit Missing Inputs instead of inventing syntax.
 - **Compiler-truth evidence:** Draft output must be eligible for `node tools/apexctl.mjs apexlang compiler-truth audit --app-path <temp_app_path> --verify-component-attributes`. Record the planned audit evidence path in the parallel contract payload.
 - **Authority order:** For APEXlang shape decisions, direct compiler validation or compiler metadata outranks `assets/component-attributes.json`, which outranks template prose and examples.
+- **Snippet classification:** Treat unclassified examples as `illustrative_prompt` only. They can help route intent, but they are not schema evidence and must not supply table, column, page, item, API, LOV, or region identifiers.
+- **Metavariable templates:** Output-template snippets that contain `{{...}}` variables are structure-only until every variable is bound from authoritative context. Do not emit unresolved variables or prompt-only pseudo-identifiers in generated `.apx`.
 </allowed_sources>
 
 <exact_match_policy>
@@ -52,7 +56,10 @@ Inputs
 <generation_plan_contract>
 - Follow `GENERATION_PLAN_REQUIRED_001`.
 - For non-trivial page, component, or application generation, emit a compact `Generation Plan` section before the APEXlang artifact.
+- Treat only same-property wording/value edits on existing documented properties as trivial. Any change that adds, removes, or reshapes page, region, item, button, SQL, LOV, validation, process, dynamic-action, navigation, template-option, source-mode, target-mapping, component-family, or behavior structure is non-trivial.
+- Prompts that say `simple`, `basic`, `starter`, `lightweight`, or `quick` still require a Generation Plan when they create or change structure.
 - The plan must include the minimum required fields from the shared contract: target artifact scope, exact template family or variant, region/item/button inventory in output order when applicable, source mode decisions such as `table/view` vs `sql`, navigation or target decisions, and compiler-truth evidence references when required.
+- For each non-trivial page/region family, the plan must identify the loaded template, rule, compiler-truth source, or app-spec decision that permits the emitted shape. If a richer requested design has no supported source, plan the closest simpler documented native APEX pattern, a workflow-permitted placeholder, or a Missing Inputs stop.
 - Response order for non-trivial structural generation is: `Compiler Truth Evidence` when required, then `Generation Plan`, then generated APEXlang.
 </generation_plan_contract>
 
@@ -72,11 +79,14 @@ Inputs
 - If compiler-backed truth cannot be resolved, emit Missing Inputs instead of inventing syntax.
 - If a non-exact-match structural edit requires compiler truth and the response cannot supply the required evidence entry, emit Missing Inputs instead of drafting the artifact.
 - If a non-trivial structural artifact requires a Generation Plan and the required plan fields cannot be supplied, emit Missing Inputs instead of drafting the artifact.
+- If no loaded authoritative source proves a requested property, enum value, block name, target shape, item mapping, component capability, page pattern, interaction, or navigation mode, do not emit it. Simplify to a documented supported pattern, use a workflow-permitted placeholder, or stop with Missing Inputs.
+- If a required `{{...}}` metavariable, schema object, item, region, LOV, API, or navigation target cannot be bound from authoritative context, emit Missing Inputs instead of copying placeholder text or fake identifiers.
 - Use bounded inference only after all higher-precedence rule and workflow sources are exhausted, and only for low-risk connective details that do not change structural legality.
 </stop_conditions>
 
 Detailed constraints
 - **Interactive Report column headings:** Emit `heading { heading: ... }` for every Interactive Report column, including `type: hidden`, because that is the schema- and compiler-safe emitted shape.
+- **Interactive Report column links:** For region `type: interactiveReport`, never emit `type: link`; use `type: plainText` and a column-level `link { target: ... linkText: ... }`.
 - **Classic Report hidden columns:** When a Classic Report column is `type: hidden`, omit the `heading {}` block entirely. Do not copy the Interactive Report hidden-column rule into Classic Report.
 - **Concrete output precedence:** When family template prose or variable-contract text conflicts with concrete emitted output blocks, validator behavior, or same-family page examples, follow the concrete emitted shape and flag the template as defective for cleanup. Do not preserve stale aliases such as shared LOV `type: sharedLov` / `sharedLov: @alias` when the accepted DSL is `type: sharedComponent` / `lov: @alias`.
 - **Region/type safety:** For covered components, do not emit region-type-specific blocks or properties unless they are explicitly allowed by the component-attributes contract. Treat unsupported template examples as defects.
@@ -125,7 +135,7 @@ Detailed constraints
 - **Exact template-option values:** Keep `#DEFAULT#` as its own entry, keep documented composite values atomic, and pass only the documented accepted value for the family. Never concatenate `#DEFAULT#` with another token and never emit a legacy alias when the owning family documents emitted CSS/composite values instead, for example use `t-CardsRegion--styleA` rather than `style-a`.
 - **Classic Report default templates:** For every `classicReport` region, emit the canonical shared defaults exactly as `appearance { template: @/standard templateOptions: #DEFAULT# }` plus `componentAppearance { template: @/standard templateOptions: [ #DEFAULT# t-Report--stretch t-Report--horizontalBorders ] }`. This means Stretch Report is on, report borders are horizontal only, alternating rows are disabled by omission, and row highlight is not on by default. Live compiler validation for 26.1 maps missing report template to property `411` and reports `componentAppearance - template (string)`, so never omit the Classic Report `componentAppearance.template`. For the documented `@/contextual-info` wrapper variant, set `appearance.templateOptions` exactly to `[ #DEFAULT# t-Region--hideHeader js-addHiddenHeadingRoleDesc t-Region--noUI ]` while keeping `componentAppearance.template: @/standard` and the canonical report component options.
 - **Drawer form default:** Report-to-form create/edit pages default to `appearance.pageMode: modalDialog`, `appearance.dialogTemplate: @/drawer`, and an explicit `js-dialog-class-t-Drawer--pullOutEnd` template option unless requirements explicitly select centered dialog, start/top/bottom drawer, wizard, or full-page behavior.
-- **Button template-option values:** For button `appearance.templateOptions`, emit only canonical button-family UT class values such as `t-Button--iconLeft`, `t-Button--hoverIconPush`, `t-Button--mobileHideLabel`, `t-Button--primary`, `t-Button--simple`, `t-Button--tiny`, and `t-Button--stretch`. Never emit aliases/static_ids or naked suffix tokens such as `left`, `push`, `hide-label-on-mobile`, `primary`, or `tiny`.
+- **Button template-option values:** For button `appearance.templateOptions`, emit only canonical button-family UT class values such as `t-Button--iconLeft`, `t-Button--iconRight`, `t-Button--hoverIconPush`, `t-Button--mobileHideLabel`, `t-Button--primary`, `t-Button--simple`, `t-Button--tiny`, and `t-Button--stretch`. Never emit aliases/static_ids or naked suffix tokens such as `left`, `right`, `push`, `hide-label-on-mobile`, `primary`, or `tiny`. For `@/text-with-icon` buttons with `icon`, include exactly one icon-position option and default to `t-Button--iconLeft`; omit left/right icon-position options for `@/icon`.
 - **Template-option array formatting:** When a `templateOptions` array contains more than one accepted value, emit a bracketed multi-line array with one accepted value per line. Never emit inline comma-separated arrays such as `[#DEFAULT#, t-Report--stretch]`.
 - **DSL format:** Emit APEXlang exclusively; wrap SQL in triple backticks.
 - **Artifact boundary:** For APEXlang generation tasks, do not draft unrelated helper source files unless the user explicitly requested tooling or scripts.

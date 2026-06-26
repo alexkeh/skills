@@ -153,7 +153,9 @@ Use the component registry (`assets/apex-generation/components.registry.json`) t
 ---
 
 ## Examples
-- “Create an interactive report on EMP with modal form for edits and dynamic action to refresh after submit.”
+These are `illustrative_prompt` examples. Replace any `{{...}}` variables with verified identifiers before use.
+
+- “Create an interactive report on {{source.table}} with modal form for edits and dynamic action to refresh after submit.”
 - “Add dashboard cards for Sales KPIs using existing page 10.”
 - “Apply dynamic action batch to refresh regions on pages 12, 14, 20 when timer fires.”
 

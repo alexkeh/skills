@@ -220,7 +220,7 @@ Critique checklist (actionable, token-thin)
   - Cite `references/policies/memory-bank/30-pages/apex.chart-page.md`, `templates/region-components/chart/chart._common.md`, `templates/region-components/chart/chart._axis._common.md`, and `assets/component-attributes.json` in findings.
   - Fail if any chart `series` block omits `execution.sequence`, including gauges and other non-cartesian charts where series ordering is still required by page standards.
 - Classic report structure gate (hard fail when applicable):
-  - Validate classic report pagination against the allowed enum catalog: `rowRangesXToYNoPagination`, `rowRangesXToYOfZNoPagination`, `rowRangesXToYOfZWithPagination`, `setPaginationLinks`, `setPaginationSelectList`, `setPaginationSearchEngine`, `externalPaginationButtons`, `nextAndPreviousLinks`, or omitted (`null`).
+  - Validate classic report pagination against the allowed enum catalog: `externalPaginationButtons`, `nextAndPreviousLinks`, `rowRangesXToYNoPagination`, `rowRangesXToYOfZNoPagination`, `rowRangesXToYOfZWithPagination`, `setPaginationLinks`, `setPaginationSearchEngine`, `setPaginationSelectList`, or omitted (`null`).
   - Flag unsupported classic report values such as `rowRangesXToY` / `rowRangesXToYOfZ` (Interactive Report-only tokens).
   - Validate `pagination.displayPosition` only for Classic/IR and only when `pagination.type` is present; allowed values: `bottomLeft`, `bottomRight`, `topLeft`, `topRight`, `topAndBottomLeft`, `topAndBottomRight`.
   - For classic report columns, fail unsupported `source` properties when not allowed by the relevant contract/template.
@@ -258,6 +258,7 @@ Critique checklist (actionable, token-thin)
   - Validate interactive report pagination against the allowed enum catalog: `rowRangesXToY`, `rowRangesXToYOfZ`, or omitted (`null`).
   - Flag unsupported interactive report values such as `rowRangesXToYNoPagination`, `setPaginationLinks`, or Classic-only pagination variants.
   - Fail when any interactive report column omits the `heading` block or omits `heading.heading`, including hidden technical columns. Cite `references/policies/memory-bank/30-pages/apex.interactive-report.md`, `templates/region-components/interactive-report/interactive-report._columns._common.md`, and `assets/component-attributes.json`.
+  - Hard-fail `INTERACTIVE_REPORT_LINK_COLUMN_TYPE_FORBIDDEN_001` when any Interactive Report column has top-level `type: link`; `type: link` is Classic Report-only and Interactive Report links must keep `type: plainText` with `link {}`.
   - Fail when interactive report columns emit `reportColumnQueryId` or `derivedColumn`; those attributes are Classic Report-only in this repository contract.
   - Fail when interactive report columns emit top-level `htmlExpression`; require `columnFormatting.htmlExpression`.
 - Classic report column contract gate (hard fail when applicable):

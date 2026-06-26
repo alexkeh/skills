@@ -70,6 +70,14 @@ Required response order for non-trivial structural generation:
 2. `Generation Plan`
 3. generated APEXlang
 
+### Trivial Work Boundary
+
+Trivial APEXlang work is limited to same-property edits on existing artifacts, such as wording-only updates, labels, titles, help text, comments, or replacing an existing documented property value with another value of the same kind.
+
+Work is non-trivial when it adds, removes, or reshapes page, region, item, button, SQL, LOV, validation, process, dynamic-action, navigation, template-option, source-mode, target-mapping, component-family, or behavior structure. New report, form, chart, map, dashboard, shared-component, navigation, or behavior generation is non-trivial even when the prompt calls it simple, basic, starter, lightweight, or quick.
+
+Trivial work may skip a full `Generation Plan` only when it stays on an existing documented property, does not introduce new structure or compiler-truth decisions, and does not alter runtime behavior. If there is doubt, classify the work as non-trivial.
+
 ### Application Spec
 
 Required before complete application generation from functional requirements plus model/schema metadata.
@@ -100,6 +108,31 @@ Do not:
 - skip to “best judgment” because a template seems close enough
 - invent target pages, target item names, enum values, slots, or block shapes when the workflow cannot prove them
 - treat local validator success as permission to infer missing structure
+
+## Generation Boundary
+
+For non-trivial APEXlang output, the `Generation Plan` is a boundary contract, not only a summary. It must identify the supported template family or documented page/design pattern that authorizes each emitted page, region family, item family, button/navigation mode, dynamic-action shape, and non-default template option.
+
+Generated `.apx` artifacts must stay inside the current authoritative sources: guardrails, governance, loaded memory-bank rules, current template documentation, compiler-backed truth, and machine-readable contracts. Requirements may select, combine, or parameterize supported native APEX/APEXlang patterns, but they do not authorize new DSL surface or undocumented component behavior.
+
+Do not invent properties, enum values, block names, target shapes, item mappings, template options, region capabilities, dynamic-action selectors, page patterns, component families, or navigation modes outside the loaded authoritative sources. Unsupported design intent must be recorded as blocked/deferred, simplified to a documented native APEX pattern, or represented by a supported placeholder only when the active workflow explicitly allows placeholders.
+
+## Snippet Classification Contract
+
+All prompt, template, and memory-bank snippets are one of these classes:
+
+- `normative_rule`: guidance that may be followed literally.
+- `metavariable_template`: structure-only template content that may be emitted only after every `{{...}}` variable is bound from schema evidence, user input, a template contract, or compiler-backed truth.
+- `illustrative_prompt`: natural-language routing example only; never schema evidence and never a source of table, column, page, item, API, or region identifiers.
+- `counterexample`: known-bad content that must never be emitted.
+
+Rules:
+
+- Treat unclassified examples and snippets as `illustrative_prompt` unless they are under an `Output Template` heading or an explicit variable contract.
+- Do not copy sample or placeholder identifiers from `illustrative_prompt` text into APEXlang, SQL, JSON contracts, or generated `.apx` files.
+- Do not emit a `metavariable_template` while any `{{...}}` variable remains unbound.
+- Stop with `Missing Inputs` when a required schema, page, item, region, LOV, API, or navigation binding cannot be proven.
+- Generated `.apx` artifacts must not contain unresolved `{{...}}` variables or prompt-only pseudo-identifiers such as `SOURCE_TABLE`, `LOOKUP_TABLE`, `RELATED_TABLE`, `SOURCE_ID`, `LOOKUP_ID`, or `LOOKUP_NAME`.
 
 ## Validator Feedback Contract
 

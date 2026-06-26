@@ -16,6 +16,7 @@
 ## Canonical Ownership
 - Template family choice for pages, regions, buttons, and visible items.
 - Template-option defaults that affect framing, layout, density, disclosure, heading presence, body behavior, or label presentation.
+- Button icon placement as a template-option composition concern; keep the concrete button default, override, and icon-only exception in `references/policies/memory-bank/40-components/apex.buttons.md`.
 - Region button position semantics and allowed placements by template.
 - Shared interpretation rules for whitespace-joined template-option tokens and other template serialization requirements.
 - The composition-first boundary so shared UI defaults remain in one canonical place.
@@ -138,6 +139,7 @@ Accepted-value contract:
 - For true Theme 42 template-option catalogs, pass the exact accepted emitted value documented by the owning family. Some families document a caller-facing `static_id`, while others document the emitted CSS/composite value for this build. Do not substitute a different form, label text, or group name.
 - For presets and documented composite UT values, pass the full documented composite string as one `templateOptions` entry when that exact combined value is the accepted emitted value.
 - Do not compose new values by joining `#DEFAULT#` with another token or by converting catalog metadata into inferred output.
+- For button template options, pass emitted values such as `t-Button--iconLeft` rather than caller-facing aliases/static_ids such as `left`; keep component-specific defaults in `references/policies/memory-bank/40-components/apex.buttons.md`.
 
 Anti-Patterns:
 - Invalid: `templateOptions: [#DEFAULT#t-Report--stretch]`

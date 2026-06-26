@@ -34,7 +34,11 @@
      - For text/discrete string facets, omit `source.dataType`; do not emit `varchar2`, `VARCHAR2`, `STRING`, or other SQL/report data-type labels in faceted-search facet sources.
 5. **Linkage**
    - `filteredRegion` must reference the results region static ID.
-   - Do not emit `settings.currentFacetsSelector`; the live importer rejects that property in this runtime.
+   - Standard faceted-search regions must emit the default settings block:
+     `compactNosThreshold: 10000`, `showCurrentFacets: true`, and `showTotalRowCount: true`.
+   - Treat selector-mode current facets as opt-in only. Emit `showCurrentFacets: selector` only when explicitly requested, and emit `settings.currentFacetsSelector` only with selector mode.
+   - Selector mode requires a concrete selector value supplied by the request or a clearly named generated target.
+   - Emit `settings.displayChartForTopNValues` only for explicit chart/top-N requests; use a positive integer such as `10`.
    - Do not emit internal runtime tokens such as `NATIVE_SEARCH` or `NATIVE_SELECT_LIST` unless a compiler-validated example explicitly requires them.
 6. **Metadata Validation Gate**
    - For `localDatabase` sources, all result columns and `facet.source.databaseColumn` values must be metadata-validated via `db_connection_name` in SQLcl; otherwise STOP.

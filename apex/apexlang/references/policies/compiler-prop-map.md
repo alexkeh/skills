@@ -39,4 +39,3 @@ node tools/compiler-truth-audit.mjs --app-path applications/my-app --verify-comp
 - No checked-in compiler prop-map snapshot is shipped in the public package.
 - The helper normalizes metadata in memory for each run so results stay tied to the active runtime.
 - The audit command writes machine-readable compiler-truth evidence and blocks generation workflows when the active runtime metadata or curated component policy provenance is stale.
-- The audit command writes machine-readable compiler-truth evidence and blocks generation workflows when the active runtime metadata or curated component policy provenance is stale.

@@ -13,7 +13,10 @@ function defaultCommand() {
     : `node ${["ai-context", "apexlang", "compiler-prop-map", "query-valid-props.mjs"].join("/")}`;
 }
 
-function nextValue(argv, index, flag) {
+/**
+ * Return the value after a flag, or fail with a clear command-line error.
+ */
+function readRequiredOptionValue(argv, index, flag) {
   const value = argv[index + 1];
   if (!value || value.startsWith("--")) {
     throw new Error(`Missing value for ${flag}`);
@@ -21,6 +24,9 @@ function nextValue(argv, index, flag) {
   return value;
 }
 
+/**
+ * Parse the query helper flags without normalizing the requested component yet.
+ */
 function parseArgs(argv) {
   const args = {
     javaHome: null,
@@ -41,36 +47,36 @@ function parseArgs(argv) {
     const arg = argv[index];
     switch (arg) {
       case "--java-home":
-        args.javaHome = nextValue(argv, index, arg);
+        args.javaHome = readRequiredOptionValue(argv, index, arg);
         index += 1;
         break;
       case "--compiler-oracle-home":
       case "--oracle-home":
-        args.compilerOracleHome = nextValue(argv, index, arg);
+        args.compilerOracleHome = readRequiredOptionValue(argv, index, arg);
         index += 1;
         break;
       case "--component":
-        args.component = nextValue(argv, index, arg);
+        args.component = readRequiredOptionValue(argv, index, arg);
         index += 1;
         break;
       case "--component-type-id":
-        args.componentTypeId = nextValue(argv, index, arg);
+        args.componentTypeId = readRequiredOptionValue(argv, index, arg);
         index += 1;
         break;
       case "--parent":
-        args.parent = nextValue(argv, index, arg);
+        args.parent = readRequiredOptionValue(argv, index, arg);
         index += 1;
         break;
       case "--group":
-        args.group = nextValue(argv, index, arg);
+        args.group = readRequiredOptionValue(argv, index, arg);
         index += 1;
         break;
       case "--template-component":
-        args.templateComponent = nextValue(argv, index, arg);
+        args.templateComponent = readRequiredOptionValue(argv, index, arg);
         index += 1;
         break;
       case "--when":
-        args.assumes.push(nextValue(argv, index, arg));
+        args.assumes.push(readRequiredOptionValue(argv, index, arg));
         index += 1;
         break;
       case "--list":
@@ -129,6 +135,9 @@ const DOTTED_COMPONENT_ALIASES = new Map([
   ["displayOnly.source", { component: "pageItem", group: "source", assumes: ["381=DISPLAY_ONLY"] }]
 ]);
 
+/**
+ * Expand friendly dotted aliases such as chart.series.tooltip into compiler metadata filters.
+ */
 function resolveDottedComponentAlias(args) {
   if (!args.component || !args.component.includes(".")) {
     return;
@@ -156,6 +165,9 @@ function resolveDottedComponentAlias(args) {
   }
 }
 
+/**
+ * Convert --when entries into lookup maps used by dependency evaluation.
+ */
 function parseAssumptions(entries) {
   const byRawKey = new Map();
   const byScopedName = new Map();
@@ -183,6 +195,9 @@ function parseAssumptions(entries) {
   return { byRawKey, byScopedName, byPropertyName };
 }
 
+/**
+ * Render a compiler metadata dependency condition in readable text.
+ */
 function conditionToText(node) {
   if (!node) {
     return "";
@@ -273,6 +288,9 @@ function combineResults(operator, results) {
   return { state: "unknown" };
 }
 
+/**
+ * Evaluate one metadata condition against caller-provided --when assumptions.
+ */
 function evaluateCondition(node, assumptionIndex) {
   if (!node) {
     return { state: "true" };
@@ -286,6 +304,9 @@ function evaluateCondition(node, assumptionIndex) {
   return evaluateLeaf(node, assumptionIndex);
 }
 
+/**
+ * Return compiler components that match the requested component, parent, and type filters.
+ */
 function selectComponents(map, args) {
   let matches = map.componentTypes;
 
@@ -340,6 +361,9 @@ function renderLovValues(prop) {
   });
 }
 
+/**
+ * Print a human-readable component property summary.
+ */
 function renderComponent(record, args, assumptionIndex) {
   console.log(`${record.singular} [componentTypeId=${record.componentTypeId}]`);
   console.log(`parent: ${record.parentComponentType || "none"}`);
@@ -374,6 +398,9 @@ function renderComponent(record, args, assumptionIndex) {
   }
 }
 
+/**
+ * Build the JSON payload for one component after applying dependency assumptions.
+ */
 function componentPayload(record, args, assumptionIndex) {
   const groups = {};
   for (const [groupName, props] of Object.entries(record.groups)) {

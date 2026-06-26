@@ -16,6 +16,7 @@
 6. For same-application navigation, prefer declarative page targets on the region or column link definition when the DSL supports it; do not default to SQL-computed `apex_page.get_url(...)` or `type: url`.
 7. Every delivered SQL or table projection must have an explicit `column (...)` definition before finals. Do not rely on implicit generated columns for delivered Classic Reports.
 8. Hidden Classic Report columns must omit the `heading` block entirely. This differs from Interactive Report, where hidden columns still require `heading { heading: ... }`.
+9. Classic Report columns with a column-level `link {}` block must also emit top-level `type: link`.
 
 ### DB-First Source Verification (Required)
 - For `source.location: localDatabase`, verify source object metadata before writing SQL:
@@ -35,6 +36,7 @@
 - Do not emit `type: richText` for `columnFormatting.htmlExpression` patterns.
 - Follow `references/policies/memory-bank/30-pages/apex.report-column-rendering.md` for all SQL-vs-column rendering behavior, formatting-block placement, and HTML literal rules.
 - For same-app drill navigation, define the target declaratively on the report column whenever the component contract supports it. Keep SQL URL columns only for explicit URL mode or components that genuinely require a URL string.
+- For Classic Report column links, keep the report projection column explicit and emit `type: link` next to `reportColumnQueryId` and `derivedColumn`; do not rely on the `link {}` block alone to imply link rendering.
 - Make the primary-key decision explicit:
   - when row navigation or row identity is part of the page behavior, keep the PK as an explicit report column and wire the target declaratively
   - when navigation is not intended, keep the PK hidden as a technical column

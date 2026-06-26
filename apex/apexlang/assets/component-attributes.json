@@ -296,6 +296,32 @@
             "template"
           ]
         },
+        "pagination": {
+          "allowedProperties": [
+            "type",
+            "displayPosition"
+          ],
+          "propertyEnums": {
+            "type": [
+              "externalPaginationButtons",
+              "nextAndPreviousLinks",
+              "rowRangesXToYNoPagination",
+              "rowRangesXToYOfZNoPagination",
+              "rowRangesXToYOfZWithPagination",
+              "setPaginationLinks",
+              "setPaginationSearchEngine",
+              "setPaginationSelectList"
+            ],
+            "displayPosition": [
+              "bottomLeft",
+              "bottomRight",
+              "topLeft",
+              "topRight",
+              "topAndBottomLeft",
+              "topAndBottomRight"
+            ]
+          }
+        },
         "column": {
           "allowedProperties": [
             "reportColumnQueryId",
@@ -693,6 +719,7 @@
             "settings",
             "columnFormatting",
             "source",
+            "link",
             "lov",
             "security",
             "comments",
@@ -732,6 +759,13 @@
           "columnFormatting": {
             "allowedProperties": [
               "htmlExpression"
+            ]
+          },
+          "link": {
+            "allowedProperties": [
+              "target",
+              "linkText",
+              "linkAttributes"
             ]
           }
         }

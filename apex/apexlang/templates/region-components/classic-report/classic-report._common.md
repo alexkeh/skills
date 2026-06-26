@@ -109,14 +109,14 @@ region {{regionStaticId}} (
 
 - Default classic-report pagination is `rowRangesXToYNoPagination`.
 - Allowed `pagination.type` values for classic reports are:
+  - `externalPaginationButtons`
+  - `nextAndPreviousLinks`
   - `rowRangesXToYNoPagination`
   - `rowRangesXToYOfZNoPagination`
   - `rowRangesXToYOfZWithPagination`
   - `setPaginationLinks`
-  - `setPaginationSelectList`
   - `setPaginationSearchEngine`
-  - `externalPaginationButtons`
-  - `nextAndPreviousLinks`
+  - `setPaginationSelectList`
 - Omit `pagination.type` to represent no explicit value (`null`).
 - Do not use interactive-report-only values such as `rowRangesXToY` or `rowRangesXToYOfZ` on classic reports.
 

@@ -17,12 +17,21 @@ const SUPPORTED_COMPONENTS = new Set([
   "app",
   "page",
   "region",
+  "column",
+  "axis",
+  "series",
+  "layer",
+  "filter",
+  "facet",
   "pageItem",
   "button",
   "dynamicAction",
   "process",
   "computation",
-  "validation"
+  "validation",
+  "list",
+  "entry",
+  "breadcrumb",
 ]);
 const COMPILER_METADATA_PROPERTY_ALIASES = new Map([
   ["app.authentication.scheme", "authenticationScheme"]
@@ -34,7 +43,10 @@ function defaultCommand() {
     : `node ${["ai-context", "apexlang", "compiler-prop-map", "compiler-truth-audit.mjs"].join("/")}`;
 }
 
-function nextValue(argv, index, flag) {
+/**
+ * Return the value after a flag, or fail with a clear command-line error.
+ */
+function readRequiredOptionValue(argv, index, flag) {
   const value = argv[index + 1];
   if (!value || value.startsWith("--")) {
     throw new Error(`Missing value for ${flag}`);
@@ -42,6 +54,9 @@ function nextValue(argv, index, flag) {
   return value;
 }
 
+/**
+ * Parse compiler-truth audit flags while preserving legacy option aliases.
+ */
 function parseArgs(argv) {
   const args = {
     appPath: "",
@@ -56,20 +71,20 @@ function parseArgs(argv) {
     const arg = argv[index];
     switch (arg) {
       case "--app-path":
-        args.appPath = nextValue(argv, index, arg);
+        args.appPath = readRequiredOptionValue(argv, index, arg);
         index += 1;
         break;
       case "--report-path":
-        args.reportPath = nextValue(argv, index, arg);
+        args.reportPath = readRequiredOptionValue(argv, index, arg);
         index += 1;
         break;
       case "--component-attributes":
-        args.componentAttributes = nextValue(argv, index, arg);
+        args.componentAttributes = readRequiredOptionValue(argv, index, arg);
         index += 1;
         break;
       case "--compiler-oracle-home":
       case "--oracle-home":
-        args.compilerOracleHome = nextValue(argv, index, arg);
+        args.compilerOracleHome = readRequiredOptionValue(argv, index, arg);
         index += 1;
         break;
       case "--verify-component-attributes":
