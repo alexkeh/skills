@@ -1,1 +1,15 @@
 .claude/settings.local.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node_modules
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
