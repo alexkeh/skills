@@ -131,6 +131,78 @@
       ],
       "load_path": "references/ops/runtime-gates.md",
       "needs_db": true
+    },
+    {
+      "id": "application-settings",
+      "summary": "Configure APEX application-level settings including globalization, session management, security, and app-level metadata.",
+      "keywords": [
+        "globalization",
+        "session management",
+        "security",
+        "runtime",
+        "compatibility mode",
+        "checksum salt",
+        "translation method"
+      ],
+      "load_path": "references/domains/application-settings.md"
+    },
+    {
+      "id": "workspace-components",
+      "summary": "Manage workspace-level resources including credentials, REST data sources, and generative AI services.",
+      "keywords": [
+        "credentials",
+        "rest data source",
+        "generative ai",
+        "workspace management",
+        "environment provisioning",
+        "deployment"
+      ],
+      "load_path": "references/domains/workspace-components.md"
+    },
+    {
+      "id": "app-composition-workflows",
+      "summary": "End-to-end workflows for composing complete APEX applications from requirements to APEXlang artifacts, including master-detail patterns, modal forms, faceted search, and rich UI pattern mapping.",
+      "keywords": [
+        "application composition",
+        "master-detail",
+        "modal form",
+        "faceted search",
+        "rich ui patterns",
+        "page templates",
+        "navigation",
+        "breadcrumbs"
+      ],
+      "load_path": "references/domains/app-composition-workflows.md"
+    },
+    {
+      "id": "form-crud-patterns",
+      "summary": "Patterns for building form-based create-read-update-delete workflows with validation, context handling, and modal/drawer interactions including master-detail workbenches.",
+      "keywords": [
+        "form",
+        "crud",
+        "modal",
+        "drawer",
+        "validation",
+        "context",
+        "master-detail",
+        "dynamic actions"
+      ],
+      "load_path": "references/domains/form-crud-patterns.md"
+    },
+    {
+      "id": "reporting-and-dashboards",
+      "summary": "Patterns for building interactive reports, dashboards, charts, maps, and data visualization including KPI cards, faceted search, and calendar views.",
+      "keywords": [
+        "report",
+        "dashboard",
+        "chart",
+        "map",
+        "kpi",
+        "interactive report",
+        "interactive grid",
+        "calendar"
+      ],
+      "load_path": "references/domains/reporting-and-dashboards.md"
     }
   ]
 }
