@@ -42,7 +42,7 @@ db/
 |-------|-----------|
 | Data Guard, redo/undo logs, users | `db/admin/` |
 | Safe DML, destructive operation guards, idempotency, schema discovery, ORA- error handling | `db/agent/` |
-| JDBC, pooling, JSON, XML, spatial, Oracle Text, transactions, MLE, language drivers | `db/appdev/` |
+| JDBC, Python, .NET, pooling, JSON, XML, spatial, Oracle Text, transactions, MLE, language drivers | `db/appdev/` |
 | RAC, Multitenant, Exadata, In-Memory, OCI database services, Data Guard architecture | `db/architecture/` |
 | Backup, recovery, RMAN, Autonomous Recovery Service, Cloud Protect | `db/backup-recovery/` |
 | OCR database-category container images and pull guidance | `db/containers/` |
